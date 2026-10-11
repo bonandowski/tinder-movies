@@ -38,6 +38,8 @@ export interface SeenData {
   /** Utente Letterboxd da cui leggere la RSS (ultimi ~50 film del diario). */
   username?: string
   syncedAt?: string
+  /** L'ultima RSS era piena: nel diario ci sono film più vecchi, che arrivano solo dall'export. */
+  feedTruncated?: boolean
 }
 
 export function loadSeen(): SeenData | null {

@@ -114,7 +114,9 @@ Due fonti, che si sommano (l'elenco salvato nel browser cresce e non perde mai f
   (in ordine di visione, senza paginazione né ordinamento), ognuna già con l'id TMDB. Si rilegge a
   ogni ingresso in una stanza, quindi i film nuovi si aggiungono da soli. Nessuna password: il
   diario è pubblico.
-- **Export completo**, per tutto lo storico, una volta sola: dal sito di Letterboxd, Impostazioni →
+- **Export completo** (secondario: l'app lo propone solo quando la RSS è piena, cioè quando il
+  diario va più indietro degli ultimi 50 film; altrimenti è in "Come funziona?"), per tutto lo
+  storico, una volta sola: dal sito di Letterboxd, Impostazioni →
   Dati → «Esporta i tuoi dati» (la voce potrebbe chiamarsi in modo leggermente diverso), poi si
   carica lo ZIP così com'è (basta anche `watched.csv`; se manca si usano `ratings.csv` e
   `diary.csv`). Il browser legge il file e manda al server solo titolo e anno, a blocchi di 150, per
@@ -178,7 +180,7 @@ o rifiuta la chiave, `422` se un filtro non è valido.
 
 | Endpoint | Cosa fa |
 |----------|---------|
-| `GET /api/letterboxd/{utente}/recent` | Ultimi ~50 film del diario pubblico (RSS): `{username, films:[{tmdb_id, title, year, rating, watched_date, rewatch}]}`; 404 se l'utente non esiste |
+| `GET /api/letterboxd/{utente}/recent` | Ultimi ~50 film del diario pubblico (RSS): `{username, films:[{tmdb_id, title, year, rating, watched_date, rewatch}], truncated}`; `truncated` = la RSS è piena e il diario va più indietro; 404 se l'utente non esiste |
 | `POST /api/films/match` | Riconosce film da titolo + anno (max 200): `{films:[{title, year?}]}` → `{ids:[id\|null,…]}` nello stesso ordine |
 | `POST /api/rooms` | Crea una stanza. Body `{"name": "Anna"}` → `{code, name, token}` |
 | `GET /api/rooms/{code}` | La stanza esiste e ci si può entrare? → `{code, phase, players, joinable}` (404 se no) |

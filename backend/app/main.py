@@ -120,6 +120,7 @@ def get_letterboxd(conn: HTTPConnection) -> LetterboxdClient:
 class RecentFilms(BaseModel):
     username: str
     films: list[DiaryEntry]
+    truncated: bool = Field(description="La RSS è piena: nel diario ci sono film più vecchi")
 
 
 @app.get("/api/letterboxd/{username}/recent", response_model=RecentFilms)
@@ -128,10 +129,10 @@ async def letterboxd_recent(
 ):
     """Ultimi film del diario pubblico di un utente Letterboxd (~50, dalla RSS), con id TMDB."""
     try:
-        films = await letterboxd.recent(username)
+        feed = await letterboxd.recent(username)
     except LetterboxdError as exc:
         raise HTTPException(exc.status_code, str(exc)) from exc
-    return RecentFilms(username=username, films=films)
+    return RecentFilms(username=username, films=feed.films, truncated=feed.truncated)
 
 
 class NewRoom(BaseModel):

@@ -43,7 +43,7 @@ export const api = {
   providers: () => request<Provider[]>('/api/providers'),
   /** Ultimi ~50 film del diario pubblico di un utente Letterboxd. */
   letterboxdRecent: (username: string) =>
-    request<{ username: string; films: DiaryEntry[] }>(`/api/letterboxd/${encodeURIComponent(username)}/recent`),
+    request<{ username: string; films: DiaryEntry[]; truncated: boolean }>(`/api/letterboxd/${encodeURIComponent(username)}/recent`),
   /** Id TMDB di ogni film (titolo + anno), o null se non riconosciuto. Stesso ordine. */
   matchFilms: (films: FilmRef[]) =>
     request<{ ids: (number | null)[] }>('/api/films/match', {

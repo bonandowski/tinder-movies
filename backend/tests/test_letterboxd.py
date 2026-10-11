@@ -4,7 +4,13 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from app.letterboxd import BASE_URL, LetterboxdClient, LetterboxdError, parse_feed
+from app.letterboxd import (
+    BASE_URL,
+    FEED_DIARY_LIMIT,
+    LetterboxdClient,
+    LetterboxdError,
+    parse_feed,
+)
 from app.main import app, get_letterboxd
 
 FEED = (Path(__file__).parent / "fixtures" / "letterboxd_rss.xml").read_text()
@@ -30,7 +36,7 @@ def client_for(fake: FakeLetterboxd) -> LetterboxdClient:
 
 
 def test_parse_feed_reads_films_with_tmdb_id_rating_and_date():
-    entries = parse_feed(FEED)
+    entries = parse_feed(FEED).films
     assert [(e.tmdb_id, e.title, e.year) for e in entries] == [
         (693134, "Dune: Part Two", 2024),
         (949, "Heat", 1995),
@@ -41,20 +47,45 @@ def test_parse_feed_reads_films_with_tmdb_id_rating_and_date():
 
 
 def test_parse_feed_keeps_the_latest_viewing_and_skips_lists_and_tv():
-    entries = parse_feed(FEED)
+    entries = parse_feed(FEED).films
     assert [e.tmdb_id for e in entries].count(693134) == 1
     assert entries[0].rating == 4.5  # la visione più recente, non quella di marzo
+
+
+def feed_with(film_items: int, list_items: int = 0) -> str:
+    films = "".join(
+        f"<item><title>Film {i}</title><tmdb:movieId>{i % 40 + 1}</tmdb:movieId></item>"
+        for i in range(film_items)
+    )
+    lists = "<item><title>Una lista</title></item>" * list_items
+    return (
+        '<rss version="2.0" xmlns:tmdb="https://themoviedb.org"><channel>'
+        f"{films}{lists}</channel></rss>"
+    )
+
+
+def test_a_full_diary_feed_is_marked_as_truncated_even_with_rewatches():
+    feed = parse_feed(feed_with(FEED_DIARY_LIMIT, list_items=50))
+    assert feed.truncated is True
+    assert len(feed.films) == 40  # 50 voci di diario, ma 10 sono film rivisti
+
+
+def test_a_short_diary_is_complete():
+    feed = parse_feed(feed_with(FEED_DIARY_LIMIT - 1, list_items=50))  # le liste non contano
+    assert feed.truncated is False
+    assert parse_feed(FEED).truncated is False
 
 
 def test_parse_feed_does_not_depend_on_namespace_urls():
     other = FEED.replace("https://letterboxd.com", "https://example.org/lb").replace(
         "https://themoviedb.org", "urn:tmdb"
     )
-    assert [e.tmdb_id for e in parse_feed(other)] == [693134, 949]
+    assert [e.tmdb_id for e in parse_feed(other).films] == [693134, 949]
 
 
 def test_parse_feed_of_an_empty_diary():
-    assert parse_feed('<rss version="2.0"><channel><title>x</title></channel></rss>') == []
+    feed = parse_feed('<rss version="2.0"><channel><title>x</title></channel></rss>')
+    assert (feed.films, feed.truncated) == ([], False)
 
 
 def test_parse_feed_refuses_something_that_is_not_xml():
@@ -67,8 +98,8 @@ def test_parse_feed_refuses_something_that_is_not_xml():
 
 async def test_recent_reads_the_users_feed():
     fake = FakeLetterboxd()
-    entries = await client_for(fake).recent("anna")
-    assert len(entries) == 2
+    feed = await client_for(fake).recent("anna")
+    assert len(feed.films) == 2
     assert fake.requests[0].url.path == "/anna/rss/"
 
 
@@ -114,7 +145,7 @@ async def test_errors_are_not_cached():
     with pytest.raises(LetterboxdError):
         await letterboxd.recent("anna")
     fake.status, fake.body = 200, FEED
-    assert len(await letterboxd.recent("anna")) == 2
+    assert len((await letterboxd.recent("anna")).films) == 2
 
 
 # --- endpoint ----------------------------------------------------------------------------------
@@ -135,6 +166,7 @@ def test_endpoint_returns_the_recent_films(api):
     assert response.status_code == 200
     body = response.json()
     assert body["username"] == "anna"
+    assert body["truncated"] is False
     assert body["films"][0] == {
         "tmdb_id": 693134,
         "title": "Dune: Part Two",

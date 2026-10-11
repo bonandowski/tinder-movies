@@ -20,9 +20,25 @@ function ago(iso: string | undefined): string {
   return hours < 24 ? `${hours} h fa` : `${Math.round(hours / 24)} g fa`
 }
 
+/** Pulsante che apre la scelta del file dell'export (ZIP o CSV). */
+function ExportButton({ label, disabled, onPick, className = 'btn small' }: {
+  label: string
+  disabled: boolean
+  onPick: (event: ChangeEvent<HTMLInputElement>) => void
+  className?: string
+}) {
+  return (
+    <label className={`${className} ${disabled ? 'disabled' : ''}`} style={{ textAlign: 'center' }}>
+      {label}
+      <input className="file-input" type="file" accept=".zip,.csv,application/zip,text/csv" disabled={disabled} onChange={onPick} />
+    </label>
+  )
+}
+
 /**
- * "Film già visti": il nome utente Letterboxd porta gli ultimi ~50 film del diario (RSS pubblica,
- * aggiornata a ogni stanza); l'export porta tutto lo storico, una volta sola. Si accumulano.
+ * "Film già visti". La strada principale è il nome utente Letterboxd: la RSS pubblica porta gli
+ * ultimi ~50 film del diario e si rilegge a ogni stanza. L'export completo (tutto lo storico) è
+ * secondario: lo proponiamo solo quando la RSS è piena, cioè quando il diario va più indietro.
  */
 export default function SeenCard({ onChange }: Props) {
   const [data, setData] = useState<SeenData | null>(loadSeen)
@@ -44,8 +60,13 @@ export default function SeenCard({ onChange }: Props) {
     setSyncing(true)
     if (!quiet) setError(null)
     try {
-      const { films } = await api.letterboxdRecent(user)
-      const added = store({ ids: films.map((film) => film.tmdb_id), username: user, syncedAt: new Date().toISOString() })
+      const { films, truncated } = await api.letterboxdRecent(user)
+      const added = store({
+        ids: films.map((film) => film.tmdb_id),
+        username: user,
+        syncedAt: new Date().toISOString(),
+        feedTruncated: truncated,
+      })
       setLastAdded(added)
     } catch (e) {
       const message = (e as Error).message
@@ -99,10 +120,18 @@ export default function SeenCard({ onChange }: Props) {
   }
 
   const busy = syncing || progress !== null
+  const suggestExport = Boolean(data?.feedTruncated && !data.exportInfo)
 
   return (
     <section className="card">
-      <h2>Film già visti</h2>
+      <div className="row spread">
+        <h2>Film già visti</h2>
+        {data && !busy && (
+          <button className="btn small ghost" onClick={disconnect}>
+            Scollega
+          </button>
+        )}
+      </div>
 
       {data && data.ids.length > 0 ? (
         <div className="field" style={{ gap: 4 }}>
@@ -124,7 +153,7 @@ export default function SeenCard({ onChange }: Props) {
         </div>
       ) : (
         <p className="muted">
-          Collega Letterboxd: i film che hai già visto non compaiono nella pila di nessuno in questa stanza.
+          Scrivi il tuo nome utente Letterboxd: i film che hai già visto non compaiono nella pila di nessuno in questa stanza.
         </p>
       )}
 
@@ -159,31 +188,37 @@ export default function SeenCard({ onChange }: Props) {
         </form>
       )}
 
-      <div className="row">
-        <label className={`btn grow small ${busy ? 'disabled' : ''}`} style={{ textAlign: 'center' }}>
-          {data?.exportInfo ? 'Ricarica l’export completo' : 'Carica l’export completo'}
-          <input className="file-input" type="file" accept=".zip,.csv,application/zip,text/csv" disabled={busy} onChange={importFile} />
-        </label>
-        {data && !busy && (
-          <button className="btn small ghost" onClick={disconnect}>
-            Scollega
-          </button>
-        )}
-      </div>
+      {suggestExport && !busy && (
+        <div className="hint field" style={{ gap: 10 }}>
+          <span className="small">
+            Il tuo diario va più indietro degli ultimi 50 film che riusciamo a leggere. Per escludere anche quelli più
+            vecchi carica una volta l’export completo di Letterboxd.
+          </span>
+          <ExportButton label="Carica l’export completo" disabled={busy} onPick={importFile} />
+        </div>
+      )}
 
       <details>
         <summary className="muted small">Come funziona?</summary>
         <div className="small muted field" style={{ gap: 8, marginTop: 8 }}>
           <p>
-            <strong>Nome utente</strong>: leggiamo il tuo diario pubblico (gli ultimi ~50 film registrati) ogni volta che
-            entri in una stanza, e li aggiungiamo a quelli già salvati. I film votati senza passare dal diario non ci sono.
+            Leggiamo il tuo diario pubblico di Letterboxd (gli ultimi ~50 film registrati) ogni volta che entri in una
+            stanza, e li aggiungiamo a quelli già salvati in questo browser. Nessuna password; agli altri giocatori
+            arriva solo quanti film hai collegato, mai quali.
           </p>
           <p>
-            <strong>Export completo</strong>, per tutto lo storico, una volta sola: dal sito di Letterboxd, Impostazioni →
-            Dati → «Esporta i tuoi dati», poi carichi qui lo ZIP. Il file lo legge il tuo browser: al server arrivano solo
-            titoli e anni per riconoscere i film.
+            Nel diario non ci sono i film segnati come visti senza registrarli, né quelli più vecchi degli ultimi 50.
+            Per avere tutto, una volta sola: sul sito di Letterboxd, Impostazioni → Dati → «Esporta i tuoi dati», poi
+            carichi qui lo ZIP. Il file lo legge il tuo browser: al server arrivano solo titoli e anni.
           </p>
-          <p>Agli altri giocatori arriva solo quanti film hai collegato, mai quali. Nessuna password.</p>
+          {!suggestExport && (
+            <ExportButton
+              label={data?.exportInfo ? 'Ricarica l’export completo' : 'Carica l’export completo'}
+              disabled={busy}
+              onPick={importFile}
+              className="btn small ghost"
+            />
+          )}
         </div>
       </details>
     </section>

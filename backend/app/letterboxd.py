@@ -16,6 +16,7 @@ from app.tmdb import TTLCache
 BASE_URL = "https://letterboxd.com"
 USER_AGENT = "TinderMovies/0.1 (+https://github.com/bonandowski/tinder-movies)"
 USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_]{1,40}$")
+FEED_DIARY_LIMIT = 50  # voci di diario che la RSS mostra al massimo
 FEED_TTL = 10 * 60  # stesso utente entro 10 minuti: niente nuova richiesta a Letterboxd
 MAX_FEED_BYTES = 2 * 1024 * 1024
 
@@ -37,6 +38,11 @@ class DiaryEntry(BaseModel):
     rewatch: bool = False
 
 
+class RecentFeed(BaseModel):
+    films: list[DiaryEntry]
+    truncated: bool  # la RSS è piena: nel diario ci sono quasi certamente film più vecchi
+
+
 def _local_name(tag: str) -> str:
     """`{https://letterboxd.com}filmTitle` -> `filmTitle`: i namespace non ci interessano."""
     return tag.rsplit("}", 1)[-1]
@@ -49,10 +55,11 @@ def _number(text: str | None, kind: type) -> int | float | None:
         return None
 
 
-def parse_feed(xml_text: str) -> list[DiaryEntry]:
+def parse_feed(xml_text: str) -> RecentFeed:
     """Voci di film del feed, dalla più recente; senza doppioni (vale la visione più recente).
 
-    Le voci senza id TMDB di un film (liste, serie TV) vengono saltate.
+    Le voci senza id TMDB di un film (liste, serie TV) vengono saltate. `truncated` dice se le voci
+    di diario sono tante quante la RSS ne mostra al massimo, cioè se il diario va più indietro.
     """
     try:
         root = ET.fromstring(xml_text)
@@ -60,12 +67,16 @@ def parse_feed(xml_text: str) -> list[DiaryEntry]:
         raise LetterboxdError("La risposta di Letterboxd non è una RSS leggibile", 502) from exc
     entries: list[DiaryEntry] = []
     seen: set[int] = set()
+    diary_items = 0
     for item in root.iter():
         if _local_name(item.tag) != "item":
             continue
         fields = {_local_name(child.tag): (child.text or "").strip() for child in item}
         tmdb_id = _number(fields.get("movieId"), int)
-        if tmdb_id is None or tmdb_id in seen:
+        if tmdb_id is None:
+            continue
+        diary_items += 1
+        if tmdb_id in seen:
             continue
         seen.add(tmdb_id)
         entries.append(
@@ -78,7 +89,7 @@ def parse_feed(xml_text: str) -> list[DiaryEntry]:
                 rewatch=fields.get("rewatch", "").lower() == "yes",
             )
         )
-    return entries
+    return RecentFeed(films=entries, truncated=diary_items >= FEED_DIARY_LIMIT)
 
 
 class LetterboxdClient:
@@ -101,7 +112,7 @@ class LetterboxdClient:
         if self._http is not None:
             await self._http.aclose()
 
-    async def recent(self, username: str) -> list[DiaryEntry]:
+    async def recent(self, username: str) -> RecentFeed:
         if not USERNAME_PATTERN.match(username):
             raise LetterboxdError("Nome utente Letterboxd non valido", 422)
         key = username.lower()
@@ -122,6 +133,6 @@ class LetterboxdClient:
             raise LetterboxdError(f"Letterboxd ha risposto con errore {response.status_code}", 502)
         if len(response.content) > MAX_FEED_BYTES:
             raise LetterboxdError("La RSS di Letterboxd è troppo grande", 502)
-        entries = parse_feed(response.text)
-        self._cache.set(key, entries)
-        return entries
+        feed = parse_feed(response.text)
+        self._cache.set(key, feed)
+        return feed

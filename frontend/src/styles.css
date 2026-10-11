@@ -736,3 +736,9 @@ p {
 details > summary {
   cursor: pointer;
 }
+
+.hint {
+  border: 1px dashed var(--border);
+  border-radius: 14px;
+  padding: 12px;
+}

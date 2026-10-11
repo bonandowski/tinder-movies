@@ -1,0 +1,110 @@
+"""Un finto TMDB (da usare con httpx.MockTransport) per testare senza rete né chiave."""
+
+import math
+from typing import Any
+
+import httpx
+
+from app.tmdb import DISCOVER_PAGE_SIZE
+
+
+def make_details(
+    movie_id: int,
+    *,
+    title: str | None = None,
+    poster: str | None = "/poster.jpg",
+    runtime: int | None = 100,
+    vote: float = 7.84,
+    release: str = "2020-05-01",
+    providers: tuple[tuple[int, str], ...] = ((8, "Netflix"),),
+) -> dict[str, Any]:
+    return {
+        "id": movie_id,
+        "title": title or f"Film {movie_id}",
+        "poster_path": poster,
+        "overview": f"Trama del film {movie_id}",
+        "runtime": runtime,
+        "vote_average": vote,
+        "release_date": release,
+        "watch/providers": {
+            "results": {
+                "IT": {
+                    "flatrate": [
+                        {
+                            "provider_id": pid,
+                            "provider_name": name,
+                            "logo_path": f"/logo{pid}.jpg",
+                            "display_priority": pid,
+                        }
+                        for pid, name in providers
+                    ]
+                }
+            }
+        },
+    }
+
+
+class FakeTMDB:
+    """Risponde come TMDB. `catalog` è l'elenco di film (in ordine di popolarità)."""
+
+    def __init__(self, catalog: list[dict[str, Any]] | None = None):
+        self.catalog = catalog if catalog is not None else []
+        self.requests: list[httpx.Request] = []
+        self.failing_movie_ids: set[int] = set()
+        self.status_override: int | None = None
+
+    def requests_to(self, prefix: str) -> list[httpx.Request]:
+        return [r for r in self.requests if r.url.path.startswith(f"/3{prefix}")]
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        if self.status_override is not None:
+            return httpx.Response(self.status_override, json={"status_message": "x"})
+        path = request.url.path.removeprefix("/3")
+        params = request.url.params
+
+        if path == "/discover/movie":
+            page = int(params["page"])
+            start = (page - 1) * DISCOVER_PAGE_SIZE
+            chunk = self.catalog[start : start + DISCOVER_PAGE_SIZE]
+            return httpx.Response(
+                200,
+                json={
+                    "page": page,
+                    "total_pages": max(1, math.ceil(len(self.catalog) / DISCOVER_PAGE_SIZE)),
+                    "results": [{"id": m["id"], "title": m["title"]} for m in chunk],
+                },
+            )
+        if path.startswith("/movie/"):
+            movie_id = int(path.rsplit("/", 1)[1])
+            if movie_id in self.failing_movie_ids:
+                return httpx.Response(500, json={})
+            by_id = {m["id"]: m for m in self.catalog}
+            return httpx.Response(200, json=by_id[movie_id])
+        if path == "/genre/movie/list":
+            return httpx.Response(
+                200,
+                json={"genres": [{"id": 35, "name": "Commedia"}, {"id": 53, "name": "Thriller"}]},
+            )
+        if path == "/watch/providers/movie":
+            return httpx.Response(
+                200,
+                json={
+                    "results": [
+                        {
+                            "provider_id": 337,
+                            "provider_name": "Disney Plus",
+                            "logo_path": "/disney.jpg",
+                            "display_priorities": {"IT": 5, "US": 1},
+                        },
+                        {
+                            "provider_id": 8,
+                            "provider_name": "Netflix",
+                            "logo_path": "/netflix.jpg",
+                            "display_priorities": {"IT": 1},
+                        },
+                        {"provider_id": 119, "provider_name": "Prime Video", "display_priority": 3},
+                    ]
+                },
+            )
+        return httpx.Response(404, json={})

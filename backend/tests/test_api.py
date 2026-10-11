@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.models import MAX_MATCH_BATCH
 from tests.fake_tmdb import FakeTMDB, make_details
 
 
@@ -91,3 +92,73 @@ def test_genres_and_providers(client):
     ]
     names = [p["name"] for p in client.get("/api/providers").json()]
     assert names == ["Netflix", "Prime Video", "Disney Plus"]
+
+
+def test_match_endpoint_recognizes_films_and_keeps_the_order(client, fake_tmdb: FakeTMDB):
+    fake_tmdb.catalog = [make_details(3, title="Heat", release="1995-12-15")]
+    response = client.post(
+        "/api/films/match",
+        json={"films": [{"title": "Sconosciuto", "year": 2001}, {"title": "Heat", "year": 1995}]},
+    )
+    assert response.status_code == 200
+    assert response.json() == {"ids": [None, 3]}
+
+
+def test_match_endpoint_accepts_a_missing_year(client, fake_tmdb: FakeTMDB):
+    fake_tmdb.catalog = [make_details(3, title="Heat", release="1995-12-15")]
+    response = client.post("/api/films/match", json={"films": [{"title": "Heat"}]})
+    assert response.json() == {"ids": [3]}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"films": [{"title": "", "year": 2000}]},
+        {"films": [{"title": "x", "year": 1500}]},
+        {"films": [{"title": "x"}] * (MAX_MATCH_BATCH + 1)},
+        {},
+    ],
+)
+def test_match_endpoint_rejects_invalid_input(client, body):
+    assert client.post("/api/films/match", json=body).status_code == 422
+
+
+def test_match_endpoint_needs_the_tmdb_key():
+    with TestClient(app) as client:
+        response = client.post("/api/films/match", json={"films": [{"title": "Heat"}]})
+    assert response.status_code == 503
+
+
+def test_themes_are_a_curated_list_with_italian_names():
+    with TestClient(app) as client:
+        themes = client.get("/api/themes").json()
+    assert {"id": 207317, "name": "Natale"} in themes
+    assert len(themes) == len({t["id"] for t in themes}) >= 10
+
+
+def test_movies_accepts_the_new_filters(client, fake_tmdb: FakeTMDB):
+    response = client.get(
+        "/api/movies",
+        params={
+            "kind": "top_rated",
+            "exclude_genres": [27],
+            "year_max": 1999,
+            "min_rating": 7,
+            "languages": ["it", "fr"],
+            "themes": [207317],
+        },
+    )
+    assert response.status_code == 200
+    [request] = fake_tmdb.requests_to("/discover/movie")
+    assert request.url.params["sort_by"] == "vote_average.desc"
+    assert request.url.params["without_genres"] == "27"
+    assert request.url.params["with_original_language"] == "it|fr"
+    assert request.url.params["with_keywords"] == "207317"
+
+
+@pytest.mark.parametrize(
+    "params",
+    [{"kind": "boh"}, {"languages": "italiano"}, {"year_min": 2010, "year_max": 1990}],
+)
+def test_movies_rejects_invalid_new_filters(client, params):
+    assert client.get("/api/movies", params=params).status_code == 422

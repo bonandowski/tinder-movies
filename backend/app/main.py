@@ -12,11 +12,13 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app.config import get_tmdb_api_key
-from app.models import Genre, Movie, Provider, StackSettings
+from app.config import get_letterboxd_base_url, get_tmdb_api_key
+from app.letterboxd import DiaryEntry, LetterboxdClient, LetterboxdError
+from app.models import MAX_MATCH_BATCH, FilmRef, Genre, Movie, Provider, StackSettings, Theme
 from app.protocol import Phase
 from app.realtime import Hub
 from app.rooms import MAX_NAME_LENGTH, MAX_PLAYERS, RoomError, RoomManager, TooManyRooms
+from app.themes import THEMES
 from app.tmdb import TMDBClient, TMDBError
 
 # La API key v3 viaggia in query string: evitiamo che httpx ne logghi gli URL.
@@ -36,6 +38,7 @@ async def purge_rooms_forever(rooms: RoomManager) -> None:
 async def lifespan(app: FastAPI):
     api_key = get_tmdb_api_key()
     app.state.tmdb = TMDBClient(api_key) if api_key else None
+    app.state.letterboxd = LetterboxdClient(base_url=get_letterboxd_base_url())
     app.state.rooms = RoomManager()
     app.state.hub = Hub(app.state.rooms)
     purger = asyncio.create_task(purge_rooms_forever(app.state.rooms))
@@ -45,6 +48,7 @@ async def lifespan(app: FastAPI):
         await purger
     if app.state.tmdb is not None:
         await app.state.tmdb.aclose()
+    await app.state.letterboxd.aclose()
 
 
 app = FastAPI(title="Tinder Movies", lifespan=lifespan)
@@ -85,6 +89,12 @@ async def providers(tmdb: TMDB):
     return await tmdb.providers()
 
 
+@app.get("/api/themes", response_model=list[Theme])
+async def themes():
+    """Temi proposti nei filtri (parole chiave TMDB), da usare nel filtro `themes`."""
+    return THEMES
+
+
 @app.get("/api/movies", response_model=list[Movie])
 async def movies(tmdb: TMDB, query: Annotated[StackSettings, Query()]):
     """Pila di film in streaming in Italia che rispettano i filtri, per popolarità.
@@ -94,8 +104,47 @@ async def movies(tmdb: TMDB, query: Annotated[StackSettings, Query()]):
     return await tmdb.movies(query, query.limit)
 
 
+class MatchRequest(BaseModel):
+    films: list[FilmRef] = Field(max_length=MAX_MATCH_BATCH)
+
+
+class MatchResult(BaseModel):
+    ids: list[int | None] = Field(
+        description="Id TMDB di ogni film, nello stesso ordine; null = no"
+    )
+
+
+@app.post("/api/films/match", response_model=MatchResult)
+async def match_films(body: MatchRequest, tmdb: TMDB):
+    """Riconosce film scritti come titolo + anno (es. l'export di Letterboxd) e dà l'id TMDB."""
+    return MatchResult(ids=await tmdb.match_films(body.films))
+
+
+def get_letterboxd(conn: HTTPConnection) -> LetterboxdClient:
+    return conn.app.state.letterboxd
+
+
+class RecentFilms(BaseModel):
+    username: str
+    films: list[DiaryEntry]
+    truncated: bool = Field(description="La RSS è piena: nel diario ci sono film più vecchi")
+
+
+@app.get("/api/letterboxd/{username}/recent", response_model=RecentFilms)
+async def letterboxd_recent(
+    username: str, letterboxd: Annotated[LetterboxdClient, Depends(get_letterboxd)]
+):
+    """Ultimi film del diario pubblico di un utente Letterboxd (~50, dalla RSS), con id TMDB."""
+    try:
+        feed = await letterboxd.recent(username)
+    except LetterboxdError as exc:
+        raise HTTPException(exc.status_code, str(exc)) from exc
+    return RecentFilms(username=username, films=feed.films, truncated=feed.truncated)
+
+
 class NewRoom(BaseModel):
     name: str = Field(max_length=200, description=f"Il tuo nome (max {MAX_NAME_LENGTH} caratteri)")
+    solo: bool = Field(False, description="Partita da solo: nessun altro può entrare")
 
 
 class CreatedRoom(BaseModel):
@@ -106,6 +155,7 @@ class CreatedRoom(BaseModel):
 
 class RoomInfo(BaseModel):
     code: str
+    solo: bool
     phase: Phase
     players: int
     joinable: bool = Field(description="Si può ancora entrare con un nome nuovo")
@@ -115,7 +165,7 @@ class RoomInfo(BaseModel):
 async def create_room(body: NewRoom, request: Request):
     """Crea una stanza. Poi collegati a `/ws/{code}` e manda `join` con `name` e `token`."""
     try:
-        room = request.app.state.rooms.create(body.name)
+        room = request.app.state.rooms.create(body.name, solo=body.solo)
     except TooManyRooms as exc:
         raise HTTPException(503, str(exc)) from exc
     except RoomError as exc:
@@ -132,9 +182,10 @@ async def room_info(code: str, request: Request):
         raise HTTPException(404, "Stanza non trovata")
     return RoomInfo(
         code=room.code,
+        solo=room.solo,
         phase=room.phase,
         players=len(room.players),
-        joinable=room.phase is Phase.LOBBY and len(room.players) < MAX_PLAYERS,
+        joinable=room.phase is Phase.LOBBY and not room.solo and len(room.players) < MAX_PLAYERS,
     )
 
 

@@ -6,17 +6,20 @@ Regole in breve:
 - la pila di film è unica e uguale per tutti; ognuno vota nel suo ordine e al suo ritmo;
 - un film è un *match* quando tutti i giocatori presenti gli hanno detto sì (servono almeno
   MIN_PLAYERS giocatori); i match sono derivati dai voti, non memorizzati;
-- si finisce quando tutti hanno votato tutta la pila, o quando l'host chiude.
+- si finisce quando tutti hanno votato tutta la pila, o quando l'host chiude;
+- la pila non ripropone film già visti da qualcuno (se l'host non lo spegne) né film già proposti
+  in una partita precedente della stessa stanza; i generi vietati da qualcuno non ci sono;
+- una stanza "solo" ha un solo giocatore: si avvia da soli e non ci sono match.
 """
 
 import hmac
 import re
 import secrets
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 
-from app.models import Movie, StackSettings
+from app.models import Movie, RoomSettings
 from app.protocol import Phase, PlayerInfo, Result, RoomState
 
 MIN_PLAYERS = 2
@@ -42,6 +45,8 @@ class Player:
     token: str = field(default_factory=lambda: secrets.token_urlsafe(16), repr=False)
     votes: dict[int, bool] = field(default_factory=dict)  # movie_id -> ha detto sì?
     connected: bool = False
+    seen: set[int] = field(default_factory=set)  # id TMDB dei film già visti (da Letterboxd)
+    vetoes: set[int] = field(default_factory=set)  # generi che questo giocatore non vuole
 
 
 def clean_name(raw: str) -> str:
@@ -53,11 +58,17 @@ def clean_name(raw: str) -> str:
 
 class Room:
     def __init__(
-        self, code: str, host_name: str, clock: Callable[[], float] = time.monotonic
+        self,
+        code: str,
+        host_name: str,
+        clock: Callable[[], float] = time.monotonic,
+        solo: bool = False,
     ) -> None:
         self.code = code
+        self.solo = solo
+        self.shown: set[int] = set()  # film già proposti in questa stanza
         self.phase = Phase.LOBBY
-        self.settings = StackSettings()
+        self.settings = RoomSettings()
         self.movies: list[Movie] = []
         self.players: dict[str, Player] = {}  # per nome, in ordine di arrivo
         self.host = ""
@@ -78,6 +89,8 @@ class Room:
     def add_player(self, name: str) -> Player:
         if self.phase is not Phase.LOBBY:
             raise RoomError("La partita è già iniziata")
+        if self.solo and self.players:
+            raise RoomError("È una partita da solo: non si può entrare")
         if len(self.players) >= MAX_PLAYERS:
             raise RoomError("La stanza è piena")
         base = clean_name(name)
@@ -125,25 +138,68 @@ class Room:
 
     # --- avvio ------------------------------------------------------------------------------
 
-    def set_settings(self, name: str, settings: StackSettings) -> None:
+    def set_settings(self, name: str, settings: RoomSettings) -> None:
         self._require_host(name)
         if self.phase is not Phase.LOBBY:
             raise RoomError("I filtri si cambiano solo in lobby")
         self.settings = settings
         self.touch()
 
-    def begin_loading(self, name: str) -> StackSettings:
+    def set_seen(self, name: str, ids: Iterable[int]) -> None:
+        """Sostituisce i film già visti da questo giocatore.
+
+        Dopo l'inizio non fa nulla (la pila è già decisa): così chi rientra a partita in corso e
+        rimanda il suo elenco non riceve errori.
+        """
+        player = self._player(name)
+        if self.phase is Phase.LOBBY:
+            player.seen = set(ids)
+            self.touch()
+
+    def set_vetoes(self, name: str, genres: Iterable[int]) -> None:
+        """Generi che questo giocatore non vuole vedere. Come `set_seen`: conta solo in lobby."""
+        player = self._player(name)
+        if self.phase is Phase.LOBBY:
+            player.vetoes = set(genres)
+            self.touch()
+
+    def vetoed_genres(self) -> set[int]:
+        return set().union(*(p.vetoes for p in self.players.values()))
+
+    def seen_ids(self) -> set[int]:
+        """Film visti da almeno uno dei giocatori (se l'host non ha scelto di mostrarli)."""
+        if not self.settings.exclude_seen:
+            return set()
+        return set().union(*(p.seen for p in self.players.values()))
+
+    def excluded_ids(self) -> set[int]:
+        """Film da non proporre: visti da qualcuno o già proposti in questa stanza."""
+        return self.seen_ids() | self.shown
+
+    def begin_loading(self, name: str) -> RoomSettings:
         """L'host preme Inizia. Chi non è collegato viene lasciato fuori dalla partita."""
         self._require_host(name)
         if self.phase is not Phase.LOBBY:
             raise RoomError("La partita è già iniziata")
         online = [p.name for p in self.players.values() if p.connected]
-        if len(online) < MIN_PLAYERS:
-            raise RoomError(f"Servono almeno {MIN_PLAYERS} giocatori collegati")
+        needed = 1 if self.solo else MIN_PLAYERS
+        if len(online) < needed:
+            raise RoomError(f"Servono almeno {needed} giocatori collegati")
+        vetoed = {g for n, p in self.players.items() if n in online for g in p.vetoes}
+        wanted = [g for g in self.settings.genres if g not in vetoed]
+        if self.settings.genres and not wanted:
+            raise RoomError("Tutti i generi scelti sono stati vietati: cambiate i generi o i veti")
         self.players = {n: p for n, p in self.players.items() if n in online}
         self.phase = Phase.LOADING
         self.touch()
-        return self.settings.model_copy(deep=True)
+        # I filtri che contano davvero: i veti di chiunque tolgono quei generi.
+        return self.settings.model_copy(
+            update={
+                "genres": wanted,
+                "exclude_genres": sorted(set(self.settings.exclude_genres) | vetoed),
+            },
+            deep=True,
+        )
 
     def abort_loading(self) -> None:
         if self.phase is Phase.LOADING:
@@ -154,9 +210,16 @@ class Room:
             raise RoomError("Nessun caricamento in corso")
         if not movies:
             self.phase = Phase.LOBBY
+            if self.excluded_ids():
+                raise RoomError(
+                    "Nessun film trovato: i filtri sono troppo stretti, o i film adatti li avete "
+                    "già visti o già avuti in questa stanza. Allarga i filtri o mostra anche i "
+                    "film già visti"
+                )
             raise RoomError("Nessun film trovato con questi filtri: provane di meno restrittivi")
         self._reset_votes()
         self.movies = movies
+        self.shown.update(m.id for m in movies)
         self.phase = Phase.SWIPING
         self.touch()
 
@@ -219,6 +282,7 @@ class Room:
         position = next((i for i, m in enumerate(self.movies) if m.id not in voted_ids), total)
         return RoomState(
             code=self.code,
+            solo=self.solo,
             phase=self.phase,
             you=name,
             host=self.host,
@@ -229,6 +293,8 @@ class Room:
                     connected=p.connected,
                     progress=len(p.votes),
                     done=total > 0 and len(p.votes) >= total,
+                    seen=len(p.seen),
+                    vetoes=sorted(p.vetoes),
                 )
                 for p in self.players.values()
             ],
@@ -279,12 +345,12 @@ class RoomManager:
     def __len__(self) -> int:
         return len(self._rooms)
 
-    def create(self, host_name: str) -> Room:
+    def create(self, host_name: str, solo: bool = False) -> Room:
         self.purge_idle()
         if len(self._rooms) >= MAX_ROOMS:
             raise TooManyRooms("Ci sono troppe stanze attive, riprova tra poco")
         code = self._new_code()
-        room = Room(code, host_name, self._clock)
+        room = Room(code, host_name, self._clock, solo=solo)
         self._rooms[code] = room
         return room
 

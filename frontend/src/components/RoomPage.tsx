@@ -40,7 +40,13 @@ function JoinGate({
     onJoin(clean)
   }
 
-  const blocked = error ?? (info && !info.joinable ? 'La partita è già iniziata o la stanza è piena' : null)
+  const blocked =
+    error ??
+    (info?.solo
+      ? 'È una partita da solo: non si può entrare'
+      : info && !info.joinable
+        ? 'La partita è già iniziata o la stanza è piena'
+        : null)
 
   return (
     <main className="app center">

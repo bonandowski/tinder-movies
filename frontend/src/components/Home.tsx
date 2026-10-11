@@ -31,6 +31,20 @@ export default function Home({ flash, navigate }: Props) {
     }
   }
 
+  async function playSolo() {
+    setBusy(true)
+    setError(null)
+    try {
+      const room = await api.createRoom(name.trim() || 'Io', true)
+      if (name.trim()) saveName(room.name)
+      saveToken(room.code, room.token)
+      navigate(`/r/${room.code}`)
+    } catch (e) {
+      setError((e as Error).message)
+      setBusy(false)
+    }
+  }
+
   async function join(event: FormEvent) {
     event.preventDefault()
     if (code.length < 4) return setError('Il codice ha 4 caratteri')
@@ -96,6 +110,17 @@ export default function Home({ flash, navigate }: Props) {
           Entra nella stanza
         </button>
       </form>
+
+      <div className="divider">da solo</div>
+
+      <section className="card">
+        <p className="muted">
+          Non sai cosa guardare? Swipe da solo, poi i film che ti piacciono si sfidano finché ne resta uno.
+        </p>
+        <button className="btn" disabled={busy} onClick={playSolo}>
+          🎬 Scegli da solo
+        </button>
+      </section>
     </main>
   )
 }

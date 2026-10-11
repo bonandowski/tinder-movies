@@ -8,6 +8,7 @@ piedi, quindi i messaggi di una risposta vengono costruiti tutti prima di inviar
 import asyncio
 import contextlib
 import logging
+import random
 from collections.abc import Callable
 
 from fastapi import WebSocket, WebSocketDisconnect
@@ -24,7 +25,9 @@ from app.protocol import (
     Ping,
     Pong,
     Reset,
+    SetSeen,
     SetSettings,
+    SetVetoes,
     Stack,
     Start,
     Swipe,
@@ -37,7 +40,7 @@ from app.tmdb import TMDBClient, TMDBError
 log = logging.getLogger(__name__)
 
 JOIN_TIMEOUT = 10.0  # secondi per mandare il messaggio di join dopo la connessione
-MAX_MESSAGE_SIZE = 4096
+MAX_MESSAGE_SIZE = 256 * 1024  # abbastanza per MAX_SEEN id; gli altri messaggi sono minuscoli
 
 # Codici di chiusura (4000-4999 sono riservati alle applicazioni).
 CLOSE_BAD_REQUEST = 4400
@@ -54,8 +57,9 @@ async def _send(ws: WebSocket, message: BaseModel) -> None:
 
 
 class Hub:
-    def __init__(self, rooms: RoomManager) -> None:
+    def __init__(self, rooms: RoomManager, rng: random.Random | None = None) -> None:
         self.rooms = rooms
+        self._rng = rng or random.Random()  # pile diverse a ogni partita
         self._sockets: dict[str, dict[str, WebSocket]] = {}  # codice -> nome -> socket
 
     async def serve(self, ws: WebSocket, code: str, tmdb: TMDBClient | None) -> None:
@@ -166,6 +170,12 @@ class Hub:
             case SetSettings():
                 room.set_settings(name, message.settings)
                 await self._broadcast_state(room)
+            case SetSeen():
+                room.set_seen(name, message.ids)
+                await self._broadcast_state(room)  # gli altri vedono quanti film hai dichiarato
+            case SetVetoes():
+                room.set_vetoes(name, message.genres)
+                await self._broadcast_state(room)
             case Start():
                 await self._start(room, name, tmdb)
             case Swipe():
@@ -193,7 +203,7 @@ class Hub:
         settings = room.begin_loading(name)
         await self._broadcast_state(room)  # i client mostrano "carico i film…"
         try:
-            movies = await tmdb.movies(settings, settings.limit)
+            movies = await tmdb.movies(settings, settings.limit, room.excluded_ids(), rng=self._rng)
             room.finish_loading(movies)
         except Exception as exc:
             room.abort_loading()  # nessun effetto se finish_loading è già tornato in lobby

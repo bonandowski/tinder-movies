@@ -1,6 +1,6 @@
 import pytest
 
-from app.models import Movie, StackSettings
+from app.models import Movie, RoomSettings, StackSettings
 from app.protocol import Phase
 from app.rooms import (
     MAX_NAME_LENGTH,
@@ -382,3 +382,174 @@ def test_room_limit():
         manager.create("Anna")
     with pytest.raises(TooManyRooms):
         manager.create("Anna")
+
+
+# --- film già visti ----------------------------------------------------------------------------
+
+
+def lobby_room(names=("Anna", "Luca")) -> Room:
+    room = Room("ABCD", names[0])
+    for name in names[1:]:
+        room.add_player(name)
+    for player in room.players.values():
+        player.connected = True
+    return room
+
+
+def test_excluded_ids_are_the_films_seen_by_anyone():
+    room = lobby_room(("Anna", "Luca", "Marta"))
+    room.set_seen("Anna", [1, 2, 3])
+    room.set_seen("Luca", [3, 4])
+    assert room.excluded_ids() == {1, 2, 3, 4}  # Marta non ha dichiarato nulla: non blocca
+
+
+def test_nothing_is_excluded_when_nobody_declared_anything():
+    assert lobby_room().excluded_ids() == set()
+
+
+def test_host_can_choose_to_show_seen_films_too():
+    room = lobby_room()
+    room.set_seen("Anna", [1, 2])
+    room.set_settings("Anna", RoomSettings(exclude_seen=False))
+    assert room.excluded_ids() == set()
+
+
+def test_set_seen_replaces_the_previous_list():
+    room = lobby_room()
+    room.set_seen("Anna", [1, 2])
+    room.set_seen("Anna", [9])
+    assert room.excluded_ids() == {9}
+    room.set_seen("Anna", [])
+    assert room.excluded_ids() == set()
+
+
+def test_set_seen_after_the_start_changes_nothing_and_does_not_fail():
+    room = started_room()
+    room.set_seen("Anna", [1, 2, 3])  # es. chi rientra rimanda il suo elenco
+    assert room.seen_ids() == set()
+
+
+def test_set_seen_from_a_stranger_is_refused():
+    with pytest.raises(RoomError, match="Non sei"):
+        lobby_room().set_seen("Fantasma", [1])
+
+
+def test_the_state_tells_how_many_films_each_player_declared_but_not_which():
+    room = lobby_room()
+    room.set_seen("Anna", [1, 2, 3])
+    state = room.state_for("Luca")
+    assert [(p.name, p.seen) for p in state.players] == [("Anna", 3), ("Luca", 0)]
+    assert set(state.players[0].model_dump()) == {
+        "name",
+        "is_host",
+        "connected",
+        "progress",
+        "done",
+        "seen",
+        "vetoes",
+    }  # il numero sì, gli id no
+
+
+def test_seen_films_survive_a_new_game_and_leaving_players_take_theirs_away():
+    room = lobby_room(("Anna", "Luca", "Marta"))
+    room.set_seen("Luca", [5])
+    room.begin_loading("Anna")
+    room.finish_loading([movie(1), movie(2)])
+    room.reset("Anna")
+    assert room.seen_ids() == {5}
+    room.remove_player("Luca")
+    assert room.seen_ids() == set()
+
+
+def test_empty_pile_with_seen_films_explains_it():
+    room = lobby_room()
+    room.set_seen("Anna", [1])
+    room.begin_loading("Anna")
+    with pytest.raises(RoomError, match="già visti"):
+        room.finish_loading([])
+
+
+# --- film già proposti, veti, partita da solo ---------------------------------------------------
+
+
+def test_a_new_game_does_not_repeat_the_films_of_the_previous_ones():
+    room = lobby_room()
+    room.begin_loading("Anna")
+    room.finish_loading([movie(1), movie(2)])
+    room.reset("Anna")
+    room.begin_loading("Anna")
+    room.finish_loading([movie(3)])
+    room.reset("Anna")
+    assert room.excluded_ids() == {1, 2, 3}
+    room.settings = RoomSettings(exclude_seen=False)  # l'interruttore riguarda solo i "già visti"
+    assert room.excluded_ids() == {1, 2, 3}
+
+
+def test_vetoes_of_anybody_remove_genres_from_the_pile():
+    room = lobby_room(("Anna", "Luca", "Marta"))
+    room.set_settings("Anna", RoomSettings(genres=[35, 27, 18], exclude_genres=[99]))
+    room.set_vetoes("Luca", [27])
+    room.set_vetoes("Marta", [10749, 27])
+    filters = room.begin_loading("Anna")
+    assert filters.genres == [35, 18]
+    assert filters.exclude_genres == [27, 99, 10749]
+    assert room.settings.genres == [35, 27, 18]  # le impostazioni dell'host restano com'erano
+
+
+def test_vetoes_are_public_and_replaceable():
+    room = lobby_room()
+    room.set_vetoes("Luca", [27, 37])
+    room.set_vetoes("Luca", [27])
+    assert [(p.name, p.vetoes) for p in room.state_for("Anna").players] == [
+        ("Anna", []),
+        ("Luca", [27]),
+    ]
+
+
+def test_vetoes_after_the_start_change_nothing():
+    room = started_room()
+    room.set_vetoes("Luca", [27])
+    assert room.vetoed_genres() == set()
+
+
+def test_vetoing_every_chosen_genre_is_explained():
+    room = lobby_room()
+    room.set_settings("Anna", RoomSettings(genres=[27]))
+    room.set_vetoes("Luca", [27])
+    with pytest.raises(RoomError, match="vietati"):
+        room.begin_loading("Anna")
+    assert room.phase is Phase.LOBBY
+
+
+def test_vetoes_of_players_left_out_at_the_start_do_not_count():
+    room = lobby_room()
+    room.add_player("Marta")  # non collegata: resta fuori
+    room.set_vetoes("Marta", [27])
+    assert room.begin_loading("Anna").exclude_genres == []
+
+
+def test_solo_room_starts_alone_and_nobody_else_can_join():
+    room = Room("SOLO", "Anna", solo=True)
+    room.players["Anna"].connected = True
+    with pytest.raises(RoomError, match="da solo"):
+        room.add_player("Luca")
+    room.begin_loading("Anna")
+    room.finish_loading([movie(1), movie(2)])
+    assert room.state_for("Anna").solo is True
+
+
+def test_solo_room_has_no_matches_but_a_list_of_liked_films():
+    room = Room("SOLO", "Anna", solo=True)
+    room.players["Anna"].connected = True
+    room.begin_loading("Anna")
+    room.finish_loading([movie(1), movie(2), movie(3)])
+    assert room.swipe("Anna", 1, True) == []  # nessun "Match!" da soli
+    room.swipe("Anna", 2, False)
+    room.swipe("Anna", 3, True)
+    assert room.phase is Phase.FINISHED
+    assert [r.movie_id for r in room.ranking()] == [1, 3]
+
+
+def test_manager_creates_solo_rooms():
+    room = RoomManager().create("Anna", solo=True)
+    assert room.solo and room.host == "Anna"

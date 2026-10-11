@@ -27,6 +27,9 @@ export default function Swipe({ room, onLeave }: Props) {
   const blocked = Boolean(info || matchMovie || showMatches)
   const isHost = state.you === state.host
   const matches = state.matches.flatMap((id) => movieById(data, id) ?? [])
+  // Da solo non ci sono match: il cuore conta i film a cui hai detto sì.
+  const liked = data.movies.filter((m) => data.votes[m.id] === true)
+  const hearts = state.solo ? liked : matches
 
   // Le prossime locandine si scaricano in anticipo, così lo swipe non aspetta la rete.
   useEffect(() => {
@@ -54,8 +57,12 @@ export default function Swipe({ room, onLeave }: Props) {
       <span className="pill">
         {Math.min(index + 1, total)}/{total}
       </span>
-      <button className="pill" onClick={() => setShowMatches(true)} aria-label={`${matches.length} match`}>
-        ❤ {matches.length}
+      <button
+        className="pill"
+        onClick={() => setShowMatches(true)}
+        aria-label={state.solo ? `${liked.length} film che ti piacciono` : `${matches.length} match`}
+      >
+        ❤ {hearts.length}
       </button>
       <button className="pill" onClick={exit} aria-label="Esci">
         ✕
@@ -70,11 +77,20 @@ export default function Swipe({ room, onLeave }: Props) {
       {showMatches && (
         <div className="overlay" onClick={() => setShowMatches(false)}>
           <div className="sheet" onClick={(e) => e.stopPropagation()}>
-            <h2>I vostri match ({matches.length})</h2>
-            {matches.length === 0 && <p className="muted">Ancora nessun film piace a tutti. Continua a swipare!</p>}
-            {matches.map((m) => (
+            <h2>{state.solo ? `Ti piacciono (${liked.length})` : `I vostri match (${matches.length})`}</h2>
+            {hearts.length === 0 && (
+              <p className="muted">
+                {state.solo ? 'Ancora nessun sì. Continua a swipare!' : 'Ancora nessun film piace a tutti. Continua a swipare!'}
+              </p>
+            )}
+            {hearts.map((m) => (
               <MovieRow key={m.id} movie={m} onClick={() => setInfo(m)} />
             ))}
+            {state.solo && liked.length > 0 && (
+              <button className="btn primary" onClick={room.finish}>
+                Basta così: aiutami a scegliere
+              </button>
+            )}
             <button className="btn" onClick={() => setShowMatches(false)}>
               Chiudi
             </button>

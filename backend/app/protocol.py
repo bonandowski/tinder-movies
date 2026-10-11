@@ -3,9 +3,11 @@
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, TypeAdapter
+from pydantic import BaseModel, Field, PositiveInt, TypeAdapter
 
-from app.models import Movie, StackSettings
+from app.models import Movie, RoomSettings
+
+MAX_SEEN = 20_000  # film visti che un giocatore può dichiarare
 
 
 class Phase(StrEnum):
@@ -28,7 +30,24 @@ class Join(BaseModel):
 
 class SetSettings(BaseModel):
     type: Literal["set_settings"] = "set_settings"
-    settings: StackSettings
+    settings: RoomSettings
+
+
+class SetSeen(BaseModel):
+    """I film già visti da chi scrive (id TMDB). Sostituisce l'elenco precedente.
+
+    Conta solo in lobby: la pila si decide quando l'host preme Inizia, poi non cambia più.
+    """
+
+    type: Literal["set_seen"] = "set_seen"
+    ids: list[PositiveInt] = Field(max_length=MAX_SEEN)
+
+
+class SetVetoes(BaseModel):
+    """Generi che chi scrive non vuole vedere (veto). Sostituisce l'elenco; conta solo in lobby."""
+
+    type: Literal["set_vetoes"] = "set_vetoes"
+    genres: list[int] = Field(max_length=30)
 
 
 class Start(BaseModel):
@@ -69,7 +88,7 @@ class Ping(BaseModel):
 
 
 ClientMessage = Annotated[
-    Join | SetSettings | Start | Swipe | Finish | Reset | Kick | Leave | Ping,
+    Join | SetSettings | SetSeen | SetVetoes | Start | Swipe | Finish | Reset | Kick | Leave | Ping,
     Field(discriminator="type"),
 ]
 client_message_adapter: TypeAdapter[ClientMessage] = TypeAdapter(ClientMessage)
@@ -93,6 +112,8 @@ class PlayerInfo(BaseModel):
     connected: bool
     progress: int = Field(description="Quanti film ha già votato")
     done: bool = Field(description="Ha votato tutta la pila")
+    seen: int = Field(0, description="Quanti film già visti ha dichiarato (non quali)")
+    vetoes: list[int] = Field(default_factory=list, description="Generi che ha vietato")
 
 
 class Result(BaseModel):
@@ -106,11 +127,12 @@ class RoomState(BaseModel):
 
     type: Literal["state"] = "state"
     code: str
+    solo: bool = Field(False, description="Partita da solo: un giocatore, nessun match")
     phase: Phase
     you: str = Field(description="Il tuo nome (unico nella stanza)")
     host: str
     players: list[PlayerInfo]
-    settings: StackSettings
+    settings: RoomSettings
     total: int = Field(description="Film nella pila (0 prima dell'inizio)")
     position: int = Field(description="Indice del prossimo film che devi votare")
     matches: list[int] = Field(description="Film piaciuti a tutti, in ordine di pila")

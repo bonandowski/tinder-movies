@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from app.main import app
+from app.protocol import MAX_SEEN
 from app.realtime import (
     CLOSE_BAD_REQUEST,
     CLOSE_KICKED,
@@ -95,7 +96,13 @@ def test_create_room_rejects_blank_name(client):
 def test_room_info(client):
     room = create_room(client)
     info = client.get(f"/api/rooms/{room['code'].lower()}").json()
-    assert info == {"code": room["code"], "phase": "lobby", "players": 1, "joinable": True}
+    assert info == {
+        "code": room["code"],
+        "solo": False,
+        "phase": "lobby",
+        "players": 1,
+        "joinable": True,
+    }
     assert client.get("/api/rooms/ZZZZ").status_code == 404
 
 
@@ -114,10 +121,32 @@ def test_players_see_each_other_in_the_lobby(game):
 
 def test_host_changes_settings_and_everybody_sees_them(game):
     _, anna, luca = game
-    settings = {"genres": [35], "platforms": [8], "year_min": 2010, "max_runtime": 120, "limit": 10}
+    settings = {
+        "kind": "hidden_gems",
+        "genres": [35],
+        "platforms": [8],
+        "year_min": 1990,
+        "year_max": 1999,
+        "max_runtime": 120,
+        "min_rating": 7.5,
+        "languages": ["it", "fr"],
+        "themes": [207317],
+        "limit": 10,
+        "exclude_seen": False,
+    }
     anna.send_json({"type": "set_settings", "settings": settings})
     state = receive_state(luca, lambda s: s["settings"]["limit"] == 10)
-    assert state["settings"] == settings
+    assert {key: state["settings"][key] for key in settings} == settings
+
+
+def test_invalid_settings_are_refused_and_nothing_changes(game):
+    _, anna, _ = game
+    anna.send_json({"type": "set_settings", "settings": {"year_min": 2010, "year_max": 1990}})
+    assert receive(anna, "error")["fatal"] is False
+    anna.send_json({"type": "set_settings", "settings": {"languages": ["italiano"]}})
+    assert receive(anna, "error")["fatal"] is False
+    anna.send_json({"type": "ping"})
+    assert receive(anna, "pong")
 
 
 def test_guest_cannot_change_settings(game):
@@ -355,3 +384,117 @@ def test_empty_room_is_deleted_when_the_last_player_leaves(client, stack):
         for _ in range(5):
             anna.receive_json()
     assert client.get(f"/api/rooms/{room['code']}").status_code == 404
+
+
+# --- film già visti ----------------------------------------------------------------------------
+
+
+def test_players_declare_seen_films_and_everybody_sees_only_the_count(game):
+    _, anna, luca = game
+    anna.send_json({"type": "set_seen", "ids": [1, 2]})
+    state = receive_state(luca, lambda s: s["players"][0]["seen"] == 2)
+    assert [p["seen"] for p in state["players"]] == [2, 0]
+    assert "ids" not in str(state)
+
+
+def test_the_pile_skips_films_seen_by_anybody(game, fake_tmdb):
+    _, anna, luca = game
+    fake_tmdb.catalog = [make_details(i) for i in range(1, 8)]
+    anna.send_json({"type": "set_seen", "ids": [1, 2]})
+    luca.send_json({"type": "set_seen", "ids": [2, 3]})
+    receive_state(luca, lambda s: s["players"][0]["seen"] == 2 and s["players"][1]["seen"] == 2)
+    assert start(anna, luca) == [4, 5, 6, 7]
+
+
+def test_host_can_show_seen_films_too(game, fake_tmdb):
+    _, anna, luca = game
+    anna.send_json({"type": "set_settings", "settings": {"exclude_seen": False}})
+    anna.send_json({"type": "set_seen", "ids": [1, 2]})
+    receive_state(
+        luca, lambda s: s["players"][0]["seen"] == 2 and not s["settings"]["exclude_seen"]
+    )
+    assert start(anna, luca) == [1, 2, 3]
+
+
+def test_all_films_seen_explains_why_the_pile_is_empty(game):
+    _, anna, luca = game
+    luca.send_json({"type": "set_seen", "ids": [1, 2, 3]})
+    receive_state(anna, lambda s: s["players"][1]["seen"] == 3)
+    anna.send_json({"type": "start"})
+    assert "già visti" in receive(anna, "error")["message"]
+    assert receive_state(luca, lambda s: s["phase"] == "lobby")
+
+
+def test_a_big_list_of_seen_films_fits_in_one_message(game):
+    _, anna, luca = game
+    anna.send_json({"type": "set_seen", "ids": list(range(1000, 6000))})
+    assert receive_state(luca, lambda s: s["players"][0]["seen"] == 5000)
+
+
+def test_a_huge_list_is_rejected_without_breaking_the_connection(game):
+    _, anna, _ = game
+    anna.send_json({"type": "set_seen", "ids": list(range(1, MAX_SEEN + 2))})
+    assert receive(anna, "error")["fatal"] is False
+    anna.send_json({"type": "ping"})
+    assert receive(anna, "pong")
+
+
+def test_rejoining_mid_game_and_resending_seen_films_is_harmless(game, tokens, client, stack):
+    code, anna, luca = game
+    start(anna, luca)
+    back = connect(client, stack, code, token=tokens["Luca"])
+    receive(back, "welcome")
+    back.send_json({"type": "set_seen", "ids": [1, 2]})
+    state = receive_state(back)
+    assert state["phase"] == "swiping" and state["players"][1]["seen"] == 0
+
+
+# --- veti, film già proposti, partita da solo ---------------------------------------------------
+
+
+def test_vetoes_are_shared_and_remove_genres_from_the_tmdb_query(game, fake_tmdb):
+    _, anna, luca = game
+    luca.send_json({"type": "set_vetoes", "genres": [27, 37]})
+    state = receive_state(anna, lambda s: s["players"][1]["vetoes"] == [27, 37])
+    assert state["players"][0]["vetoes"] == []
+    start(anna, luca)
+    [query] = fake_tmdb.requests_to("/discover/movie")
+    assert query.url.params["without_genres"] == "27,37"
+
+
+def test_new_game_in_the_same_room_does_not_repeat_films(game, fake_tmdb):
+    _, anna, luca = game
+    fake_tmdb.catalog = [make_details(i) for i in range(1, 6)]
+    anna.send_json({"type": "set_settings", "settings": {"limit": 2}})
+    receive_state(luca, lambda s: s["settings"]["limit"] == 2)
+    first = start(anna, luca)
+    anna.send_json({"type": "reset"})
+    receive_state(luca, lambda s: s["phase"] == "lobby")
+    second = start(anna, luca)
+    assert len(first) == len(second) == 2
+    assert not set(first) & set(second)
+
+
+def test_solo_game_from_creation_to_the_list_of_liked_films(client, fake_tmdb, stack):
+    fake_tmdb.catalog = [make_details(i) for i in (1, 2, 3)]
+    response = client.post("/api/rooms", json={"name": "Anna", "solo": True})
+    room = response.json()
+    info = client.get(f"/api/rooms/{room['code']}").json()
+    assert info["solo"] is True and info["joinable"] is False
+    anna = connect(client, stack, room["code"], name="Anna", token=room["token"])
+    receive(anna, "welcome")
+    assert receive_state(anna)["solo"] is True
+    anna.send_json({"type": "start"})
+    movies = [m["id"] for m in receive(anna, "stack")["movies"]]
+    for movie_id in movies:
+        anna.send_json({"type": "swipe", "movie_id": movie_id, "like": movie_id != 2})
+    final = receive_state(anna, lambda s: s["phase"] == "finished")
+    assert final["matches"] == []
+    assert [r["movie_id"] for r in final["results"]] == [1, 3]
+
+
+def test_nobody_can_join_a_solo_game(client, stack):
+    room = client.post("/api/rooms", json={"name": "Anna", "solo": True}).json()
+    other = connect(client, stack, room["code"], name="Luca")
+    error = other.receive_json()
+    assert error["fatal"] and "da solo" in error["message"]

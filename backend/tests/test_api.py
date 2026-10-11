@@ -1,22 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app, get_tmdb
+from app.main import app
 from tests.fake_tmdb import FakeTMDB, make_details
-
-
-@pytest.fixture(autouse=True)
-def no_real_tmdb_key(monkeypatch):
-    """Nei test non si usa mai la chiave vera, anche se c'è un .env."""
-    monkeypatch.setenv("TMDB_API_KEY", "")
-
-
-@pytest.fixture
-def client(tmdb):
-    app.dependency_overrides[get_tmdb] = lambda: tmdb
-    with TestClient(app) as test_client:
-        yield test_client
-    app.dependency_overrides.clear()
 
 
 def test_health():

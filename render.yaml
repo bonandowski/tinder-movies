@@ -1,0 +1,12 @@
+# Blueprint per Render (https://render.com/docs/blueprint-spec).
+services:
+  - type: web
+    name: tinder-movies
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: TMDB_API_KEY
+        sync: false # il valore lo inserisci tu nella dashboard di Render, non sta nel repo

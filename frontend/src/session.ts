@@ -57,3 +57,18 @@ export function loadSeen(): SeenData | null {
 
 export const saveSeen = (data: SeenData) => write(SEEN_KEY, JSON.stringify(data))
 export const clearSeen = () => write(SEEN_KEY, null)
+
+// I propri veti (generi da escludere) valgono per ogni stanza, come i film visti.
+
+const VETOES_KEY = 'tm:vetoes'
+
+export function loadVetoes(): number[] {
+  try {
+    const data: unknown = JSON.parse(read(VETOES_KEY) ?? '[]')
+    return Array.isArray(data) ? data.filter((id): id is number => Number.isInteger(id)) : []
+  } catch {
+    return []
+  }
+}
+
+export const saveVetoes = (genres: number[]) => write(VETOES_KEY, JSON.stringify(genres))

@@ -7,6 +7,7 @@ import { clearSeen, loadSeen, saveSeen, type SeenData } from '../session'
 interface Props {
   /** Chiamata con i film visti (id TMDB) quando cambiano, anche vuota quando li si scollega. */
   onChange: (ids: number[]) => void
+  solo?: boolean
 }
 
 const n = (value: number) => value.toLocaleString('it-IT')
@@ -40,7 +41,7 @@ function ExportButton({ label, disabled, onPick, className = 'btn small' }: {
  * ultimi ~50 film del diario e si rilegge a ogni stanza. L'export completo (tutto lo storico) è
  * secondario: lo proponiamo solo quando la RSS è piena, cioè quando il diario va più indietro.
  */
-export default function SeenCard({ onChange }: Props) {
+export default function SeenCard({ onChange, solo = false }: Props) {
   const [data, setData] = useState<SeenData | null>(loadSeen)
   const [username, setUsername] = useState('')
   const [syncing, setSyncing] = useState(false)
@@ -153,7 +154,8 @@ export default function SeenCard({ onChange }: Props) {
         </div>
       ) : (
         <p className="muted">
-          Scrivi il tuo nome utente Letterboxd: i film che hai già visto non compaiono nella pila di nessuno in questa stanza.
+          Scrivi il tuo nome utente Letterboxd: i film che hai già visto non compaiono nella{' '}
+          {solo ? 'pila.' : 'pila di nessuno in questa stanza.'}
         </p>
       )}
 

@@ -14,10 +14,11 @@ from pydantic import BaseModel, Field
 
 from app.config import get_letterboxd_base_url, get_tmdb_api_key
 from app.letterboxd import DiaryEntry, LetterboxdClient, LetterboxdError
-from app.models import MAX_MATCH_BATCH, FilmRef, Genre, Movie, Provider, StackSettings
+from app.models import MAX_MATCH_BATCH, FilmRef, Genre, Movie, Provider, StackSettings, Theme
 from app.protocol import Phase
 from app.realtime import Hub
 from app.rooms import MAX_NAME_LENGTH, MAX_PLAYERS, RoomError, RoomManager, TooManyRooms
+from app.themes import THEMES
 from app.tmdb import TMDBClient, TMDBError
 
 # La API key v3 viaggia in query string: evitiamo che httpx ne logghi gli URL.
@@ -88,6 +89,12 @@ async def providers(tmdb: TMDB):
     return await tmdb.providers()
 
 
+@app.get("/api/themes", response_model=list[Theme])
+async def themes():
+    """Temi proposti nei filtri (parole chiave TMDB), da usare nel filtro `themes`."""
+    return THEMES
+
+
 @app.get("/api/movies", response_model=list[Movie])
 async def movies(tmdb: TMDB, query: Annotated[StackSettings, Query()]):
     """Pila di film in streaming in Italia che rispettano i filtri, per popolarità.
@@ -137,6 +144,7 @@ async def letterboxd_recent(
 
 class NewRoom(BaseModel):
     name: str = Field(max_length=200, description=f"Il tuo nome (max {MAX_NAME_LENGTH} caratteri)")
+    solo: bool = Field(False, description="Partita da solo: nessun altro può entrare")
 
 
 class CreatedRoom(BaseModel):
@@ -147,6 +155,7 @@ class CreatedRoom(BaseModel):
 
 class RoomInfo(BaseModel):
     code: str
+    solo: bool
     phase: Phase
     players: int
     joinable: bool = Field(description="Si può ancora entrare con un nome nuovo")
@@ -156,7 +165,7 @@ class RoomInfo(BaseModel):
 async def create_room(body: NewRoom, request: Request):
     """Crea una stanza. Poi collegati a `/ws/{code}` e manda `join` con `name` e `token`."""
     try:
-        room = request.app.state.rooms.create(body.name)
+        room = request.app.state.rooms.create(body.name, solo=body.solo)
     except TooManyRooms as exc:
         raise HTTPException(503, str(exc)) from exc
     except RoomError as exc:
@@ -173,9 +182,10 @@ async def room_info(code: str, request: Request):
         raise HTTPException(404, "Stanza non trovata")
     return RoomInfo(
         code=room.code,
+        solo=room.solo,
         phase=room.phase,
         players=len(room.players),
-        joinable=room.phase is Phase.LOBBY and len(room.players) < MAX_PLAYERS,
+        joinable=room.phase is Phase.LOBBY and not room.solo and len(room.players) < MAX_PLAYERS,
     )
 
 

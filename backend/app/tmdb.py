@@ -3,16 +3,18 @@
 import asyncio
 import logging
 import math
+import random
 import re
 import time
 import unicodedata
 from collections.abc import Callable, Collection
+from datetime import date
 from difflib import SequenceMatcher
 from typing import Any
 
 import httpx
 
-from app.models import FilmRef, Genre, Movie, MovieFilters, Provider
+from app.models import FilmRef, Genre, Movie, MovieFilters, Provider, StackKind
 
 log = logging.getLogger(__name__)
 
@@ -24,6 +26,25 @@ LANGUAGE = "it-IT"
 DISCOVER_PAGE_SIZE = 20  # fisso lato TMDB
 MAX_DISCOVER_PAGES = 25  # tetto alle pagine lette quando si scartano molti film (500 candidati)
 MIN_VOTE_COUNT = 100  # scarta film con pochissimi voti (voti poco significativi)
+
+# Ordine e soglie per tipo di pila (verificati su TMDB: ognuno dà migliaia di film in Italia).
+KIND_PARAMS: dict[StackKind, dict[str, Any]] = {
+    StackKind.POPULAR: {"sort_by": "popularity.desc", "vote_count.gte": MIN_VOTE_COUNT},
+    StackKind.TOP_RATED: {"sort_by": "vote_average.desc", "vote_count.gte": 1000},
+    StackKind.RECENT: {"sort_by": "primary_release_date.desc", "vote_count.gte": 30},
+    StackKind.HIDDEN_GEMS: {
+        "sort_by": "vote_average.desc",
+        "vote_count.gte": MIN_VOTE_COUNT,
+        "vote_count.lte": 1500,
+        "vote_average.gte": 7.0,
+    },
+}
+# Fra le "perle nascoste" spuntano documentari e concerti: per una serata film li togliamo,
+# a meno che qualcuno non li abbia scelti apposta.
+HIDDEN_GEMS_SKIPPED_GENRES = (99, 10402)  # Documentario, Musica
+
+VARIETY_POOL = 3  # nelle stanze si pesca a caso fra i primi `limit * 3` film, non i primi `limit`
+DETAILS_SLACK = 0.25  # film in più da scaricare: alcuni si scartano (senza locandina/piattaforme)
 MAX_CONCURRENCY = 10  # richieste TMDB in parallelo
 
 CATALOG_TTL = 24 * 3600  # generi e provider cambiano di rado
@@ -127,25 +148,45 @@ def _logo_url(path: str | None) -> str | None:
     return f"{IMAGE_BASE_URL}/w92{path}" if path else None
 
 
-def build_discover_params(filters: MovieFilters, page: int = 1) -> dict[str, Any]:
+def build_discover_params(
+    filters: MovieFilters, page: int = 1, today: date | None = None
+) -> dict[str, Any]:
     """Traduce i nostri filtri nei parametri di /discover/movie."""
+    today = today or date.today()
     params: dict[str, Any] = {
         "page": page,
-        "sort_by": "popularity.desc",
         "include_adult": "false",
-        "vote_count.gte": MIN_VOTE_COUNT,
         # Solo film in abbonamento (flatrate) in Italia.
         "watch_region": REGION,
         "with_watch_monetization_types": "flatrate",
+        **KIND_PARAMS[filters.kind],
     }
     if filters.platforms:
         params["with_watch_providers"] = "|".join(map(str, filters.platforms))  # "|" = OR
     if filters.genres:
         params["with_genres"] = "|".join(map(str, filters.genres))  # "|" = OR
+    excluded = list(dict.fromkeys(filters.exclude_genres))
+    if filters.kind is StackKind.HIDDEN_GEMS:
+        excluded += [
+            g for g in HIDDEN_GEMS_SKIPPED_GENRES if g not in filters.genres and g not in excluded
+        ]
+    if excluded:
+        params["without_genres"] = ",".join(map(str, excluded))  # basta un genere per escludere
     if filters.year_min is not None:
         params["primary_release_date.gte"] = f"{filters.year_min}-01-01"
+    latest = f"{filters.year_max}-12-31" if filters.year_max is not None else None
+    if filters.kind is StackKind.RECENT:  # niente film annunciati ma non ancora usciti
+        latest = min(latest or today.isoformat(), today.isoformat())
+    if latest is not None:
+        params["primary_release_date.lte"] = latest
     if filters.max_runtime is not None:
         params["with_runtime.lte"] = filters.max_runtime
+    if filters.min_rating is not None:
+        params["vote_average.gte"] = max(filters.min_rating, params.get("vote_average.gte", 0))
+    if filters.languages:
+        params["with_original_language"] = "|".join(filters.languages)  # "|" = OR
+    if filters.themes:
+        params["with_keywords"] = "|".join(map(str, filters.themes))  # "|" = OR
     return params
 
 
@@ -216,15 +257,25 @@ class TMDBClient:
         return result
 
     async def movies(
-        self, filters: MovieFilters, limit: int = 30, exclude: Collection[int] = ()
+        self,
+        filters: MovieFilters,
+        limit: int = 30,
+        exclude: Collection[int] = (),
+        rng: random.Random | None = None,
     ) -> list[Movie]:
-        """Pila di film (ordinata per popolarità) che rispettano i filtri.
+        """Pila di film che rispettano i filtri, nell'ordine del tipo di pila (es. popolarità).
 
         `exclude` sono id da non proporre (es. già visti): si leggono più pagine di TMDB pur di
-        riempire la pila. Può restituirne meno di `limit` se i filtri sono stretti o se mancano
-        locandina/piattaforme.
+        riempire la pila. Con `rng` la pila varia: si pesca a caso fra i primi `limit * 3`
+        candidati, tenendo il loro ordine. Può restituirne meno di `limit` se i filtri sono stretti
+        o se mancano locandina/piattaforme.
         """
-        movie_ids = await self._discover_ids(filters, limit, set(exclude))
+        wanted = limit * VARIETY_POOL if rng is not None else limit
+        movie_ids = await self._discover_ids(filters, wanted, set(exclude))
+        if rng is not None:
+            keep = min(len(movie_ids), limit + math.ceil(limit * DETAILS_SLACK))
+            chosen = set(rng.sample(movie_ids, keep))
+            movie_ids = [movie_id for movie_id in movie_ids if movie_id in chosen]
         details = await asyncio.gather(*(self._safe_details(movie_id) for movie_id in movie_ids))
         movies = [m for d in details if d is not None and (m := self._to_movie(d)) is not None]
         return movies[:limit]

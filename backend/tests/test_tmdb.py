@@ -1,7 +1,10 @@
+import random
+from datetime import date
+
 import httpx
 import pytest
 
-from app.models import FilmRef, MovieFilters
+from app.models import FilmRef, MovieFilters, StackKind
 from app.tmdb import (
     BASE_URL,
     MAX_DISCOVER_PAGES,
@@ -43,6 +46,71 @@ def test_discover_params_map_every_filter():
     assert params["primary_release_date.gte"] == "2015-01-01"
     assert params["with_runtime.lte"] == 110
     assert params["page"] == 3
+
+
+def test_discover_params_for_each_kind_of_pile():
+    today = date(2026, 10, 11)
+    popular = build_discover_params(MovieFilters(), today=today)
+    assert (popular["sort_by"], popular["vote_count.gte"]) == ("popularity.desc", 100)
+    top = build_discover_params(MovieFilters(kind=StackKind.TOP_RATED), today=today)
+    assert (top["sort_by"], top["vote_count.gte"]) == ("vote_average.desc", 1000)
+    recent = build_discover_params(MovieFilters(kind=StackKind.RECENT), today=today)
+    assert recent["sort_by"] == "primary_release_date.desc"
+    assert recent["primary_release_date.lte"] == "2026-10-11"  # niente film non ancora usciti
+    gems = build_discover_params(MovieFilters(kind=StackKind.HIDDEN_GEMS), today=today)
+    assert gems["vote_count.lte"] == 1500 and gems["vote_average.gte"] == 7.0
+    assert gems["without_genres"] == "99,10402"  # niente documentari e concerti
+
+
+def test_hidden_gems_keep_documentaries_if_someone_asked_for_them():
+    gems = build_discover_params(MovieFilters(kind=StackKind.HIDDEN_GEMS, genres=[99]))
+    assert gems["without_genres"] == "10402"
+
+
+def test_discover_params_map_the_new_filters():
+    filters = MovieFilters(
+        exclude_genres=[27, 35],
+        year_min=1990,
+        year_max=1999,
+        min_rating=7.5,
+        languages=["it", "fr"],
+        themes=[207317, 9672],
+    )
+    params = build_discover_params(filters)
+    assert params["without_genres"] == "27,35"
+    assert params["primary_release_date.gte"] == "1990-01-01"
+    assert params["primary_release_date.lte"] == "1999-12-31"
+    assert params["vote_average.gte"] == 7.5
+    assert params["with_original_language"] == "it|fr"
+    assert params["with_keywords"] == "207317|9672"
+
+
+def test_min_rating_never_lowers_the_hidden_gems_threshold():
+    gems = MovieFilters(kind=StackKind.HIDDEN_GEMS, min_rating=6)
+    assert build_discover_params(gems)["vote_average.gte"] == 7.0
+    assert build_discover_params(gems.model_copy(update={"min_rating": 8}))["vote_average.gte"] == 8
+
+
+def test_recent_pile_up_to_an_older_year_keeps_that_year():
+    params = build_discover_params(
+        MovieFilters(kind=StackKind.RECENT, year_max=1999), today=date(2026, 10, 11)
+    )
+    assert params["primary_release_date.lte"] == "1999-12-31"
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"year_min": 2010, "year_max": 1990},
+        {"languages": ["ita"]},
+        {"languages": ["IT"]},
+        {"min_rating": 11},
+        {"kind": "random"},
+    ],
+)
+def test_invalid_filters_are_refused(bad):
+    with pytest.raises(ValueError):
+        MovieFilters(**bad)
 
 
 # --- pila di film -----------------------------------------------------------------------------
@@ -381,3 +449,40 @@ async def test_match_gives_up_after_too_many_rate_limits(
     with pytest.raises(TMDBError) as error:
         await tmdb.match_films([film("Heat", 1995)])
     assert error.value.status_code == 429
+
+
+# --- varietà: pile diverse a ogni partita ------------------------------------------------------
+
+
+async def test_with_a_random_generator_the_pile_is_picked_among_more_candidates(
+    tmdb: TMDBClient, fake_tmdb: FakeTMDB
+):
+    fake_tmdb.catalog = catalog(200)
+    piles = [
+        [m.id for m in await tmdb.movies(MovieFilters(), limit=10, rng=random.Random(seed))]
+        for seed in (1, 2)
+    ]
+    assert piles[0] != piles[1]
+    for pile in piles:
+        assert len(pile) == 10
+        assert pile == sorted(pile)  # resta l'ordine di TMDB (qui: popolarità)
+        assert max(pile) <= 30  # pescati fra i primi 3 x 10
+    assert len(fake_tmdb.requests_to("/discover/movie")) == 2 * 2  # 30 candidati = 2 pagine
+
+
+async def test_without_a_random_generator_the_pile_is_the_same_every_time(
+    tmdb: TMDBClient, fake_tmdb: FakeTMDB
+):
+    fake_tmdb.catalog = catalog(200)
+    first = [m.id for m in await tmdb.movies(MovieFilters(), limit=10)]
+    assert (
+        first == [m.id for m in await tmdb.movies(MovieFilters(), limit=10)] == list(range(1, 11))
+    )
+
+
+async def test_random_pile_with_few_candidates_takes_them_all(
+    tmdb: TMDBClient, fake_tmdb: FakeTMDB
+):
+    fake_tmdb.catalog = catalog(4)
+    pile = await tmdb.movies(MovieFilters(), limit=10, rng=random.Random(0))
+    assert [m.id for m in pile] == [1, 2, 3, 4]

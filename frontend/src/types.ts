@@ -24,12 +24,27 @@ export interface Movie {
   providers: Provider[]
 }
 
+export type StackKind = 'popular' | 'top_rated' | 'recent' | 'hidden_gems'
+
 export interface StackSettings {
+  kind: StackKind
   platforms: number[]
   genres: number[]
+  exclude_genres: number[]
   year_min: number | null
+  year_max: number | null
   max_runtime: number | null
+  min_rating: number | null
+  /** Lingue originali, codici ISO 639-1 (basta una). */
+  languages: string[]
+  /** Temi: id di parole chiave TMDB (basta uno). */
+  themes: number[]
   limit: number
+}
+
+export interface Theme {
+  id: number
+  name: string
 }
 
 export interface RoomSettings extends StackSettings {
@@ -64,6 +79,8 @@ export interface PlayerInfo {
   done: boolean
   /** Quanti film già visti ha dichiarato (non quali). */
   seen: number
+  /** Generi che ha vietato. */
+  vetoes: number[]
 }
 
 export interface Result {
@@ -75,6 +92,8 @@ export interface Result {
 export interface RoomState {
   type: 'state'
   code: string
+  /** Partita da solo: un giocatore, nessun match, alla fine si sceglie fra i film piaciuti. */
+  solo: boolean
   phase: Phase
   you: string
   host: string
@@ -98,6 +117,7 @@ export type ClientMessage =
   | { type: 'join'; name: string; token: string | null }
   | { type: 'set_settings'; settings: RoomSettings }
   | { type: 'set_seen'; ids: number[] }
+  | { type: 'set_vetoes'; genres: number[] }
   | { type: 'start' }
   | { type: 'swipe'; movie_id: number; like: boolean }
   | { type: 'finish' }
@@ -108,6 +128,7 @@ export type ClientMessage =
 
 export interface RoomInfo {
   code: string
+  solo: boolean
   phase: Phase
   players: number
   joinable: boolean

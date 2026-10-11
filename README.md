@@ -85,18 +85,35 @@ Senza `frontend/dist` il backend parte lo stesso, solo senza interfaccia.
 
 1. Uno crea la stanza (nome + "Crea una stanza") e ottiene un codice di 4 caratteri e un link.
 2. Gli altri entrano dal link, oppure dalla home con il codice. Si entra solo finché si è in lobby.
-3. Chi ha creato la stanza (host) sceglie i filtri (piattaforme, generi, anno, durata, quanti film)
-   e preme **Inizia**: servono almeno 2 giocatori collegati. Chi non è collegato in quel momento
-   resta fuori dalla partita.
+3. Chi ha creato la stanza (host) sceglie i filtri e preme **Inizia**: servono almeno 2 giocatori
+   collegati. Chi non è collegato in quel momento resta fuori dalla partita.
+   - In vista: piattaforme, generi, quanti film.
+   - In **Altri filtri**: tipo di pila (Popolari, Più votati, Usciti da poco, Perle nascoste), voto
+     minimo, anni (decenni), lingua originale, temi (Natale, Storia vera, Supereroi…), durata, film
+     già visti.
+   - Ognuno, host compreso, può mettere dei **veti** su dei generi: basta il veto di uno per
+     toglierli dalla pila di tutti. I veti sono visibili a tutti e restano salvati nel browser per le
+     stanze successive.
 4. Tutti vedono la stessa pila di film e votano al proprio ritmo: trascina a destra (sì) o a
    sinistra (no), usa i pulsanti o le frecce della tastiera. Un tocco sulla locandina apre la scheda.
 5. Quando **tutti** i giocatori hanno detto sì allo stesso film compare **Match!** a tutti.
    Si può continuare a swipare: i match si accumulano (cuore in alto).
 6. A fine pila di tutti (o quando l'host preme "Mostra i risultati ora") escono i risultati: prima i
    match; se non ce ne sono, i film piaciuti a più persone, i **"meno peggio"**.
-7. L'host può far partire una **nuova partita** (stessi giocatori e filtri) oppure rimuovere un
-   giocatore. Chi esce non blocca nessuno: i match si ricalcolano senza di lui, e se l'host esce
+7. L'host può far partire una **nuova partita** (stessi giocatori e filtri: la pila cambia e non
+   ripropone i film già usciti in quella stanza) oppure rimuovere un giocatore. Chi esce non blocca nessuno: i match si ricalcolano senza di lui, e se l'host esce
    la stanza passa a un altro giocatore.
+
+Le pile variano da una partita all'altra: si pesca a caso fra i primi `3 × quanti film` candidati
+del tipo di pila scelto, tenendone l'ordine (quindi i più popolari, o più votati, restano davanti).
+
+### Da solo
+
+Dalla home, **Scegli da solo**: stessa lobby (senza codice né giocatori), stessi filtri, veti e
+film già visti. Si swipe la pila; dal cuore in alto si può fermare quando si vuole ("Basta così").
+Alla fine i film a cui hai detto sì si sfidano a coppie (chi vince resta e affronta il successivo)
+finché ne resta uno: **"Stasera guardi…"**. C'è anche "Non so decidere: scegli tu", che pesca a
+caso fra quelli ancora in gara. Nessuno può entrare in una partita da solo.
 
 Il refresh della pagina non fa perdere nulla: il browser conserva un token e si rientra nella
 stessa stanza allo stesso punto. Se cade la rete il client si ricollega da solo e rimanda i voti.
@@ -153,7 +170,8 @@ Limiti da conoscere:
 | `GET /api/health` | Controllo di stato |
 | `GET /api/providers` | Piattaforme di streaming in Italia (id, nome, logo), dalle più rilevanti |
 | `GET /api/genres` | Generi (id, nome in italiano) |
-| `GET /api/movies` | Pila di film in streaming in Italia, per popolarità |
+| `GET /api/themes` | Temi proposti (parole chiave TMDB scelte a mano, id e nome in italiano) |
+| `GET /api/movies` | Pila di film in streaming in Italia, nell'ordine del tipo di pila (sempre la stessa: la varietà c'è solo nelle stanze) |
 
 `/api/movies` accetta (tutti opzionali):
 
@@ -161,8 +179,13 @@ Limiti da conoscere:
 |-----------|---------|-------------|
 | `platforms` | `platforms=8&platforms=337` | ID piattaforme (da `/api/providers`), basta una qualsiasi |
 | `genres` | `genres=35&genres=53` | ID generi (da `/api/genres`), basta uno qualsiasi |
-| `year_min` | `year_min=2010` | Anno di uscita minimo |
+| `exclude_genres` | `exclude_genres=27` | ID generi da escludere, basta uno |
+| `year_min` / `year_max` | `year_min=1990&year_max=1999` | Anni di uscita (compresi) |
 | `max_runtime` | `max_runtime=120` | Durata massima in minuti |
+| `min_rating` | `min_rating=7` | Voto TMDB minimo |
+| `kind` | `kind=hidden_gems` | `popular` (default), `top_rated` (≥1000 voti), `recent` (dal più recente, già usciti), `hidden_gems` (voto ≥ 7, 100-1500 voti, senza documentari e concerti se non chiesti) |
+| `languages` | `languages=it&languages=fr` | Lingue originali (ISO 639-1), basta una |
+| `themes` | `themes=207317` | Temi (da `/api/themes`), basta uno |
 | `limit` | `limit=30` | Dimensione della pila (1-100, default 30) |
 
 Ogni film ha: `id`, `title`, `poster_url`, `overview` (trama), `runtime` (minuti), `rating` (0-10),
@@ -182,8 +205,8 @@ o rifiuta la chiave, `422` se un filtro non è valido.
 |----------|---------|
 | `GET /api/letterboxd/{utente}/recent` | Ultimi ~50 film del diario pubblico (RSS): `{username, films:[{tmdb_id, title, year, rating, watched_date, rewatch}], truncated}`; `truncated` = la RSS è piena e il diario va più indietro; 404 se l'utente non esiste |
 | `POST /api/films/match` | Riconosce film da titolo + anno (max 200): `{films:[{title, year?}]}` → `{ids:[id\|null,…]}` nello stesso ordine |
-| `POST /api/rooms` | Crea una stanza. Body `{"name": "Anna"}` → `{code, name, token}` |
-| `GET /api/rooms/{code}` | La stanza esiste e ci si può entrare? → `{code, phase, players, joinable}` (404 se no) |
+| `POST /api/rooms` | Crea una stanza. Body `{"name": "Anna", "solo": false}` → `{code, name, token}`; con `solo: true` nessun altro può entrare |
+| `GET /api/rooms/{code}` | La stanza esiste e ci si può entrare? → `{code, solo, phase, players, joinable}` (404 se no) |
 | `WS /ws/{code}` | Tempo reale della stanza (vedi sotto) |
 
 Messaggi JSON, sempre con un campo `type` (i tipi sono in `backend/app/protocol.py`, specchiati in
@@ -194,7 +217,8 @@ Messaggi JSON, sempre con un campo `type` (i tipi sono in `backend/app/protocol.
 | `type` | Campi | Chi può | Effetto |
 |--------|-------|---------|---------|
 | `join` | `name`, `token?` | tutti, **primo messaggio** | Entra; con `token` rientra come lo stesso giocatore |
-| `set_settings` | `settings` (filtri, `limit`, `exclude_seen`) | host, lobby | Cambia i filtri |
+| `set_settings` | `settings` (tutti i filtri di `/api/movies`, `limit`, `exclude_seen`) | host, lobby | Cambia i filtri |
+| `set_vetoes` | `genres` (id, max 30) | tutti, lobby | I propri veti, sostituendo l'elenco; dopo l'inizio non fa nulla |
 | `set_seen` | `ids` (id TMDB, max 20.000) | tutti, lobby | Dichiara i propri film già visti, sostituendo l'elenco; dopo l'inizio non fa nulla |
 | `start` | | host, lobby | Carica i film da TMDB e inizia |
 | `swipe` | `movie_id`, `like` | tutti | Vota un film (un voto doppio viene ignorato) |
@@ -209,7 +233,7 @@ Messaggi JSON, sempre con un campo `type` (i tipi sono in `backend/app/protocol.
 | `type` | Contenuto |
 |--------|-----------|
 | `welcome` | `code`, `name` (può avere un numero se era già preso), `token` da conservare |
-| `state` | Fotografia della stanza: `phase` (`lobby`, `loading`, `swiping`, `finished`), giocatori con avanzamento e quanti film già visti hanno dichiarato (`seen`, mai quali), filtri, `position` (prossimo film da votare), `matches` (id), `results` (classifica, solo a fine partita). Arriva dopo ogni cambiamento e sostituisce la precedente |
+| `state` | Fotografia della stanza: `phase` (`lobby`, `loading`, `swiping`, `finished`), `solo`, giocatori con avanzamento, veti (`vetoes`) e quanti film già visti hanno dichiarato (`seen`, mai quali), filtri, `position` (prossimo film da votare), `matches` (id), `results` (classifica, solo a fine partita). Arriva dopo ogni cambiamento e sostituisce la precedente |
 | `stack` | La pila di film, uguale per tutti: all'inizio e a chi rientra a partita in corso |
 | `match` | `movie_id` appena diventato match (dopo lo `state` che lo include) |
 | `error` | `message`; con `fatal: true` il server chiude la connessione |

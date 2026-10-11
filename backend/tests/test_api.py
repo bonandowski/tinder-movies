@@ -127,3 +127,38 @@ def test_match_endpoint_needs_the_tmdb_key():
     with TestClient(app) as client:
         response = client.post("/api/films/match", json={"films": [{"title": "Heat"}]})
     assert response.status_code == 503
+
+
+def test_themes_are_a_curated_list_with_italian_names():
+    with TestClient(app) as client:
+        themes = client.get("/api/themes").json()
+    assert {"id": 207317, "name": "Natale"} in themes
+    assert len(themes) == len({t["id"] for t in themes}) >= 10
+
+
+def test_movies_accepts_the_new_filters(client, fake_tmdb: FakeTMDB):
+    response = client.get(
+        "/api/movies",
+        params={
+            "kind": "top_rated",
+            "exclude_genres": [27],
+            "year_max": 1999,
+            "min_rating": 7,
+            "languages": ["it", "fr"],
+            "themes": [207317],
+        },
+    )
+    assert response.status_code == 200
+    [request] = fake_tmdb.requests_to("/discover/movie")
+    assert request.url.params["sort_by"] == "vote_average.desc"
+    assert request.url.params["without_genres"] == "27"
+    assert request.url.params["with_original_language"] == "it|fr"
+    assert request.url.params["with_keywords"] == "207317"
+
+
+@pytest.mark.parametrize(
+    "params",
+    [{"kind": "boh"}, {"languages": "italiano"}, {"year_min": 2010, "year_max": 1990}],
+)
+def test_movies_rejects_invalid_new_filters(client, params):
+    assert client.get("/api/movies", params=params).status_code == 422

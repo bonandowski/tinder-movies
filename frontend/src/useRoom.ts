@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react'
 import { initialRoomData, roomReducer, type RoomData } from './roomReducer'
-import { clearToken, loadSeen, loadToken, saveName, saveToken } from './session'
+import { clearToken, loadSeen, loadToken, loadVetoes, saveName, saveToken } from './session'
 import { MAX_SEEN, type ClientMessage, type RoomSettings, type ServerMessage } from './types'
 
 const PING_EVERY_MS = 25_000
@@ -16,6 +16,8 @@ export interface RoomApi {
   setSettings(settings: RoomSettings): void
   /** Dichiara i film già visti (id TMDB): chi li ha dichiarati non se li ritrova nella pila. */
   setSeen(ids: number[]): void
+  /** I generi che non vuoi: basta il veto di uno per toglierli dalla pila. */
+  setVetoes(genres: number[]): void
   start(): void
   swipe(movieId: number, like: boolean): void
   finish(): void
@@ -74,6 +76,8 @@ export function useRoom(code: string, name: string, onFatal: (message: string) =
           // I film visti collegati in precedenza valgono per ogni stanza in cui si entra.
           const seen = loadSeen()
           if (seen && seen.ids.length > 0) send({ type: 'set_seen', ids: seen.ids.slice(0, MAX_SEEN) })
+          const vetoes = loadVetoes()
+          if (vetoes.length > 0) send({ type: 'set_vetoes', genres: vetoes })
           // Dopo una caduta di rete: rimandiamo i voti, al server quelli già noti non fanno nulla.
           for (const [movieId, like] of Object.entries(dataRef.current.votes)) {
             send({ type: 'swipe', movie_id: Number(movieId), like })
@@ -118,6 +122,7 @@ export function useRoom(code: string, name: string, onFatal: (message: string) =
     data,
     setSettings: (settings) => send({ type: 'set_settings', settings }),
     setSeen: (ids) => send({ type: 'set_seen', ids: ids.slice(0, MAX_SEEN) }),
+    setVetoes: (genres) => send({ type: 'set_vetoes', genres }),
     start: () => send({ type: 'start' }),
     swipe: (movieId, like) => {
       dispatch({ type: 'vote', movieId, like })

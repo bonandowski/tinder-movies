@@ -1,39 +1,28 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
+import { activeAdvancedCount, KINDS, LANGUAGES, LIMITS, MIN_RATINGS, RUNTIMES, toggle, YEAR_RANGES, yearRangeLabel } from '../filters'
 import type { Catalog } from '../useCatalog'
 import type { RoomSettings } from '../types'
 
-const YEARS: { label: string; value: number | null }[] = [
-  { label: 'Qualsiasi', value: null },
-  { label: 'Dal 1990', value: 1990 },
-  { label: 'Dal 2000', value: 2000 },
-  { label: 'Dal 2010', value: 2010 },
-  { label: 'Dal 2020', value: 2020 },
-]
-const RUNTIMES: { label: string; value: number | null }[] = [
-  { label: 'Qualsiasi', value: null },
-  { label: 'Max 90 min', value: 90 },
-  { label: 'Max 2 h', value: 120 },
-  { label: 'Max 2 h 30', value: 150 },
-]
-const LIMITS = [10, 20, 30, 50]
 const VISIBLE_PROVIDERS = 12
-
-const toggle = (list: number[], id: number) =>
-  list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
 
 interface Props {
   settings: RoomSettings
   catalog: Catalog | null
+  /** Generi vietati da qualcuno (id -> nomi): nei filtri si vedono barrati. */
+  vetoed: Map<number, string[]>
   onChange: (settings: RoomSettings) => void
 }
 
-/** Filtri modificabili (solo l'host li vede così). */
-export function FiltersEditor({ settings, catalog, onChange }: Props) {
+/** Filtri modificabili (solo l'host li vede così): i principali, poi "Altri filtri". */
+export function FiltersEditor({ settings, catalog, vetoed, onChange }: Props) {
   const [allProviders, setAllProviders] = useState(false)
+  const [advanced, setAdvanced] = useState(() => activeAdvancedCount(settings) > 0)
   const providers = catalog?.providers ?? []
   const shown = allProviders
     ? providers
     : providers.filter((p, i) => i < VISIBLE_PROVIDERS || settings.platforms.includes(p.id))
+  const set = (patch: Partial<RoomSettings>) => onChange({ ...settings, ...patch })
+  const active = activeAdvancedCount(settings)
 
   return (
     <div className="field" style={{ gap: 18 }}>
@@ -47,7 +36,7 @@ export function FiltersEditor({ settings, catalog, onChange }: Props) {
               type="button"
               className="provider"
               aria-pressed={settings.platforms.includes(p.id)}
-              onClick={() => onChange({ ...settings, platforms: toggle(settings.platforms, p.id) })}
+              onClick={() => set({ platforms: toggle(settings.platforms, p.id) })}
             >
               {p.logo_url && <img src={p.logo_url} alt="" loading="lazy" />}
               {p.name}
@@ -64,58 +53,108 @@ export function FiltersEditor({ settings, catalog, onChange }: Props) {
       <div className="field">
         <span className="label">Generi (basta uno)</span>
         <div className="chips">
-          {(catalog?.genres ?? []).map((g) => (
-            <button
-              key={g.id}
-              type="button"
-              className="chip cap"
-              aria-pressed={settings.genres.includes(g.id)}
-              onClick={() => onChange({ ...settings, genres: toggle(settings.genres, g.id) })}
-            >
-              {g.name}
-            </button>
-          ))}
+          {(catalog?.genres ?? []).map((g) => {
+            const by = vetoed.get(g.id)
+            return (
+              <button
+                key={g.id}
+                type="button"
+                className={`chip cap ${by ? 'vetoed' : ''}`}
+                aria-pressed={settings.genres.includes(g.id)}
+                title={by ? `Vietato da ${by.join(', ')}` : undefined}
+                onClick={() => set({ genres: toggle(settings.genres, g.id) })}
+              >
+                {g.name}
+              </button>
+            )
+          })}
         </div>
+        {vetoed.size > 0 && <span className="muted small">I generi barrati sono vietati da qualcuno: non ci saranno.</span>}
       </div>
 
-      <Choice
-        label="Uscito"
-        options={YEARS}
-        value={settings.year_min}
-        onPick={(year_min) => onChange({ ...settings, year_min })}
-      />
-      <Choice
-        label="Durata"
-        options={RUNTIMES}
-        value={settings.max_runtime}
-        onPick={(max_runtime) => onChange({ ...settings, max_runtime })}
-      />
-      <div className="field">
-        <span className="label">Film già visti</span>
-        <div className="chips">
-          {[
-            { label: 'Nascondi quelli visti da qualcuno', value: true },
-            { label: 'Mostrali comunque', value: false },
-          ].map((option) => (
-            <button
-              key={option.label}
-              type="button"
-              className="chip"
-              aria-pressed={settings.exclude_seen === option.value}
-              onClick={() => onChange({ ...settings, exclude_seen: option.value })}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </div>
       <Choice
         label="Quanti film"
         options={LIMITS.map((n) => ({ label: String(n), value: n }))}
         value={settings.limit}
-        onPick={(limit) => onChange({ ...settings, limit: limit ?? 30 })}
+        onPick={(limit) => set({ limit: limit ?? 30 })}
       />
+
+      <button type="button" className="btn small ghost" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}>
+        {advanced ? 'Meno filtri' : 'Altri filtri'}
+        {active > 0 && ` (${active} attiv${active === 1 ? 'o' : 'i'})`}
+      </button>
+
+      {advanced && (
+        <div className="field" style={{ gap: 18 }}>
+          <Group label="Tipo di pila" hint={KINDS.find((k) => k.value === settings.kind)?.hint}>
+            {KINDS.map((k) => (
+              <Chip key={k.value} pressed={settings.kind === k.value} onClick={() => set({ kind: k.value })}>
+                {k.label}
+              </Chip>
+            ))}
+          </Group>
+
+          <Choice label="Voto minimo" options={MIN_RATINGS} value={settings.min_rating} onPick={(min_rating) => set({ min_rating })} />
+
+          <Group label="Anni">
+            {YEAR_RANGES.map((r) => (
+              <Chip
+                key={r.label}
+                pressed={settings.year_min === r.min && settings.year_max === r.max}
+                onClick={() => set({ year_min: r.min, year_max: r.max })}
+              >
+                {r.label}
+              </Chip>
+            ))}
+          </Group>
+
+          <Group label="Lingua originale (basta una)">
+            {LANGUAGES.map((l) => (
+              <Chip key={l.code} pressed={settings.languages.includes(l.code)} onClick={() => set({ languages: toggle(settings.languages, l.code) })}>
+                {l.label}
+              </Chip>
+            ))}
+          </Group>
+
+          <Group label="Temi (basta uno)">
+            {(catalog?.themes ?? []).map((t) => (
+              <Chip key={t.id} pressed={settings.themes.includes(t.id)} onClick={() => set({ themes: toggle(settings.themes, t.id) })}>
+                {t.name}
+              </Chip>
+            ))}
+          </Group>
+
+          <Choice label="Durata" options={RUNTIMES} value={settings.max_runtime} onPick={(max_runtime) => set({ max_runtime })} />
+
+          <Group label="Film già visti">
+            <Chip pressed={settings.exclude_seen} onClick={() => set({ exclude_seen: true })}>
+              Nascondi quelli visti da qualcuno
+            </Chip>
+            <Chip pressed={!settings.exclude_seen} onClick={() => set({ exclude_seen: false })}>
+              Mostrali comunque
+            </Chip>
+          </Group>
+        </div>
+      )}
     </div>
+  )
+}
+
+function Group({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+  return (
+    <div className="field">
+      <span className="label">{label}</span>
+      <div className="chips">{children}</div>
+      {hint && <span className="muted small">{hint}</span>}
+    </div>
+  )
+}
+
+function Chip({ pressed, onClick, children }: { pressed: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button type="button" className="chip" aria-pressed={pressed} onClick={onClick}>
+      {children}
+    </button>
   )
 }
 
@@ -131,37 +170,33 @@ function Choice({
   onPick: (value: number | null) => void
 }) {
   return (
-    <div className="field">
-      <span className="label">{label}</span>
-      <div className="chips">
-        {options.map((option) => (
-          <button
-            key={option.label}
-            type="button"
-            className="chip"
-            aria-pressed={option.value === value}
-            onClick={() => onPick(option.value)}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-    </div>
+    <Group label={label}>
+      {options.map((option) => (
+        <Chip key={option.label} pressed={option.value === value} onClick={() => onPick(option.value)}>
+          {option.label}
+        </Chip>
+      ))}
+    </Group>
   )
 }
 
-/** Riepilogo dei filtri per chi non è l'host. */
-export function FiltersSummary({ settings, catalog }: Omit<Props, 'onChange'>) {
-  const names = (ids: number[], source: { id: number; name: string }[] = []) =>
-    ids.length ? ids.map((id) => source.find((s) => s.id === id)?.name ?? '…').join(', ') : 'tutte'
+/** Riepilogo dei filtri per chi non è l'host: i principali sempre, gli altri solo se attivi. */
+export function FiltersSummary({ settings, catalog }: Omit<Props, 'onChange' | 'vetoed'>) {
+  const names = (ids: (number | string)[], source: { id: number | string; name: string }[] = [], all = 'tutti') =>
+    ids.length ? ids.map((id) => source.find((s) => s.id === id)?.name ?? '…').join(', ') : all
   const lines: [string, string][] = [
-    ['Piattaforme', names(settings.platforms, catalog?.providers)],
+    ['Piattaforme', names(settings.platforms, catalog?.providers, 'tutte')],
     ['Generi', names(settings.genres, catalog?.genres)],
-    ['Uscito', settings.year_min ? `dal ${settings.year_min}` : 'qualsiasi'],
-    ['Durata', settings.max_runtime ? `max ${settings.max_runtime} min` : 'qualsiasi'],
-    ['Film già visti', settings.exclude_seen ? 'nascosti (se qualcuno li ha collegati)' : 'mostrati comunque'],
     ['Quanti film', String(settings.limit)],
   ]
+  if (settings.kind !== 'popular') lines.push(['Tipo di pila', KINDS.find((k) => k.value === settings.kind)?.label ?? ''])
+  if (settings.min_rating !== null) lines.push(['Voto minimo', `${String(settings.min_rating).replace('.', ',')}+`])
+  if (settings.year_min !== null || settings.year_max !== null) lines.push(['Anni', yearRangeLabel(settings) ?? ''])
+  if (settings.languages.length)
+    lines.push(['Lingua originale', names(settings.languages, LANGUAGES.map((l) => ({ id: l.code, name: l.label })))])
+  if (settings.themes.length) lines.push(['Temi', names(settings.themes, catalog?.themes)])
+  if (settings.max_runtime !== null) lines.push(['Durata', `max ${settings.max_runtime} min`])
+  lines.push(['Film già visti', settings.exclude_seen ? 'nascosti (se qualcuno li ha collegati)' : 'mostrati comunque'])
   return (
     <div className="field">
       {lines.map(([label, value]) => (

@@ -43,6 +43,13 @@ class SetSeen(BaseModel):
     ids: list[PositiveInt] = Field(max_length=MAX_SEEN)
 
 
+class SetVetoes(BaseModel):
+    """Generi che chi scrive non vuole vedere (veto). Sostituisce l'elenco; conta solo in lobby."""
+
+    type: Literal["set_vetoes"] = "set_vetoes"
+    genres: list[int] = Field(max_length=30)
+
+
 class Start(BaseModel):
     type: Literal["start"] = "start"
 
@@ -81,7 +88,7 @@ class Ping(BaseModel):
 
 
 ClientMessage = Annotated[
-    Join | SetSettings | SetSeen | Start | Swipe | Finish | Reset | Kick | Leave | Ping,
+    Join | SetSettings | SetSeen | SetVetoes | Start | Swipe | Finish | Reset | Kick | Leave | Ping,
     Field(discriminator="type"),
 ]
 client_message_adapter: TypeAdapter[ClientMessage] = TypeAdapter(ClientMessage)
@@ -106,6 +113,7 @@ class PlayerInfo(BaseModel):
     progress: int = Field(description="Quanti film ha già votato")
     done: bool = Field(description="Ha votato tutta la pila")
     seen: int = Field(0, description="Quanti film già visti ha dichiarato (non quali)")
+    vetoes: list[int] = Field(default_factory=list, description="Generi che ha vietato")
 
 
 class Result(BaseModel):
@@ -119,6 +127,7 @@ class RoomState(BaseModel):
 
     type: Literal["state"] = "state"
     code: str
+    solo: bool = Field(False, description="Partita da solo: un giocatore, nessun match")
     phase: Phase
     you: str = Field(description="Il tuo nome (unico nella stanza)")
     host: str

@@ -96,7 +96,13 @@ def test_create_room_rejects_blank_name(client):
 def test_room_info(client):
     room = create_room(client)
     info = client.get(f"/api/rooms/{room['code'].lower()}").json()
-    assert info == {"code": room["code"], "phase": "lobby", "players": 1, "joinable": True}
+    assert info == {
+        "code": room["code"],
+        "solo": False,
+        "phase": "lobby",
+        "players": 1,
+        "joinable": True,
+    }
     assert client.get("/api/rooms/ZZZZ").status_code == 404
 
 
@@ -116,16 +122,31 @@ def test_players_see_each_other_in_the_lobby(game):
 def test_host_changes_settings_and_everybody_sees_them(game):
     _, anna, luca = game
     settings = {
+        "kind": "hidden_gems",
         "genres": [35],
         "platforms": [8],
-        "year_min": 2010,
+        "year_min": 1990,
+        "year_max": 1999,
         "max_runtime": 120,
+        "min_rating": 7.5,
+        "languages": ["it", "fr"],
+        "themes": [207317],
         "limit": 10,
         "exclude_seen": False,
     }
     anna.send_json({"type": "set_settings", "settings": settings})
     state = receive_state(luca, lambda s: s["settings"]["limit"] == 10)
-    assert state["settings"] == settings
+    assert {key: state["settings"][key] for key in settings} == settings
+
+
+def test_invalid_settings_are_refused_and_nothing_changes(game):
+    _, anna, _ = game
+    anna.send_json({"type": "set_settings", "settings": {"year_min": 2010, "year_max": 1990}})
+    assert receive(anna, "error")["fatal"] is False
+    anna.send_json({"type": "set_settings", "settings": {"languages": ["italiano"]}})
+    assert receive(anna, "error")["fatal"] is False
+    anna.send_json({"type": "ping"})
+    assert receive(anna, "pong")
 
 
 def test_guest_cannot_change_settings(game):
@@ -426,3 +447,54 @@ def test_rejoining_mid_game_and_resending_seen_films_is_harmless(game, tokens, c
     back.send_json({"type": "set_seen", "ids": [1, 2]})
     state = receive_state(back)
     assert state["phase"] == "swiping" and state["players"][1]["seen"] == 0
+
+
+# --- veti, film già proposti, partita da solo ---------------------------------------------------
+
+
+def test_vetoes_are_shared_and_remove_genres_from_the_tmdb_query(game, fake_tmdb):
+    _, anna, luca = game
+    luca.send_json({"type": "set_vetoes", "genres": [27, 37]})
+    state = receive_state(anna, lambda s: s["players"][1]["vetoes"] == [27, 37])
+    assert state["players"][0]["vetoes"] == []
+    start(anna, luca)
+    [query] = fake_tmdb.requests_to("/discover/movie")
+    assert query.url.params["without_genres"] == "27,37"
+
+
+def test_new_game_in_the_same_room_does_not_repeat_films(game, fake_tmdb):
+    _, anna, luca = game
+    fake_tmdb.catalog = [make_details(i) for i in range(1, 6)]
+    anna.send_json({"type": "set_settings", "settings": {"limit": 2}})
+    receive_state(luca, lambda s: s["settings"]["limit"] == 2)
+    first = start(anna, luca)
+    anna.send_json({"type": "reset"})
+    receive_state(luca, lambda s: s["phase"] == "lobby")
+    second = start(anna, luca)
+    assert len(first) == len(second) == 2
+    assert not set(first) & set(second)
+
+
+def test_solo_game_from_creation_to_the_list_of_liked_films(client, fake_tmdb, stack):
+    fake_tmdb.catalog = [make_details(i) for i in (1, 2, 3)]
+    response = client.post("/api/rooms", json={"name": "Anna", "solo": True})
+    room = response.json()
+    info = client.get(f"/api/rooms/{room['code']}").json()
+    assert info["solo"] is True and info["joinable"] is False
+    anna = connect(client, stack, room["code"], name="Anna", token=room["token"])
+    receive(anna, "welcome")
+    assert receive_state(anna)["solo"] is True
+    anna.send_json({"type": "start"})
+    movies = [m["id"] for m in receive(anna, "stack")["movies"]]
+    for movie_id in movies:
+        anna.send_json({"type": "swipe", "movie_id": movie_id, "like": movie_id != 2})
+    final = receive_state(anna, lambda s: s["phase"] == "finished")
+    assert final["matches"] == []
+    assert [r["movie_id"] for r in final["results"]] == [1, 3]
+
+
+def test_nobody_can_join_a_solo_game(client, stack):
+    room = client.post("/api/rooms", json={"name": "Anna", "solo": True}).json()
+    other = connect(client, stack, room["code"], name="Luca")
+    error = other.receive_json()
+    assert error["fatal"] and "da solo" in error["message"]

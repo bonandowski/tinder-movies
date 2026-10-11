@@ -4,6 +4,7 @@ import type { Movie, Result } from '../types'
 import type { RoomApi } from '../useRoom'
 import MovieRow from './MovieRow'
 import MovieSheet from './MovieSheet'
+import SoloDecision from './SoloDecision'
 
 interface Props {
   room: RoomApi
@@ -11,6 +12,11 @@ interface Props {
 }
 
 export default function Results({ room, onLeave }: Props) {
+  if (room.data.state?.solo) return <SoloDecision room={room} onLeave={onLeave} />
+  return <GroupResults room={room} onLeave={onLeave} />
+}
+
+function GroupResults({ room, onLeave }: Props) {
   const { data } = room
   const state = data.state!
   const [info, setInfo] = useState<Movie | null>(null)

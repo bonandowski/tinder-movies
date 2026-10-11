@@ -1,4 +1,4 @@
-import type { CreatedRoom, DiaryEntry, FilmRef, Genre, Provider, RoomInfo } from './types'
+import type { CreatedRoom, DiaryEntry, FilmRef, Genre, Provider, RoomInfo, Theme } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -32,14 +32,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  createRoom: (name: string) =>
+  createRoom: (name: string, solo = false) =>
     request<CreatedRoom>('/api/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, solo }),
     }),
   roomInfo: (code: string) => request<RoomInfo>(`/api/rooms/${encodeURIComponent(code)}`),
   genres: () => request<Genre[]>('/api/genres'),
+  themes: () => request<Theme[]>('/api/themes'),
   providers: () => request<Provider[]>('/api/providers'),
   /** Ultimi ~50 film del diario pubblico di un utente Letterboxd. */
   letterboxdRecent: (username: string) =>

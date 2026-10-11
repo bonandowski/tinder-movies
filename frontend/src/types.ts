@@ -32,12 +32,28 @@ export interface StackSettings {
   limit: number
 }
 
+export interface RoomSettings extends StackSettings {
+  /** Scarta i film che almeno un giocatore ha già visto. */
+  exclude_seen: boolean
+}
+
+/** Un film come lo scrive Letterboxd: titolo e anno, senza id. */
+export interface FilmRef {
+  title: string
+  year: number | null
+}
+
+/** Quanti film già visti il server accetta da un giocatore (MAX_SEEN nel backend). */
+export const MAX_SEEN = 20_000
+
 export interface PlayerInfo {
   name: string
   is_host: boolean
   connected: boolean
   progress: number
   done: boolean
+  /** Quanti film già visti ha dichiarato (non quali). */
+  seen: number
 }
 
 export interface Result {
@@ -53,7 +69,7 @@ export interface RoomState {
   you: string
   host: string
   players: PlayerInfo[]
-  settings: StackSettings
+  settings: RoomSettings
   total: number
   position: number
   matches: number[]
@@ -70,7 +86,8 @@ export type ServerMessage =
 
 export type ClientMessage =
   | { type: 'join'; name: string; token: string | null }
-  | { type: 'set_settings'; settings: StackSettings }
+  | { type: 'set_settings'; settings: RoomSettings }
+  | { type: 'set_seen'; ids: number[] }
   | { type: 'start' }
   | { type: 'swipe'; movie_id: number; like: boolean }
   | { type: 'finish' }

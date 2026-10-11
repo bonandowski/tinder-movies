@@ -2,6 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.models import MAX_MATCH_BATCH
 from tests.fake_tmdb import FakeTMDB, make_details
 
 
@@ -91,3 +92,38 @@ def test_genres_and_providers(client):
     ]
     names = [p["name"] for p in client.get("/api/providers").json()]
     assert names == ["Netflix", "Prime Video", "Disney Plus"]
+
+
+def test_match_endpoint_recognizes_films_and_keeps_the_order(client, fake_tmdb: FakeTMDB):
+    fake_tmdb.catalog = [make_details(3, title="Heat", release="1995-12-15")]
+    response = client.post(
+        "/api/films/match",
+        json={"films": [{"title": "Sconosciuto", "year": 2001}, {"title": "Heat", "year": 1995}]},
+    )
+    assert response.status_code == 200
+    assert response.json() == {"ids": [None, 3]}
+
+
+def test_match_endpoint_accepts_a_missing_year(client, fake_tmdb: FakeTMDB):
+    fake_tmdb.catalog = [make_details(3, title="Heat", release="1995-12-15")]
+    response = client.post("/api/films/match", json={"films": [{"title": "Heat"}]})
+    assert response.json() == {"ids": [3]}
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"films": [{"title": "", "year": 2000}]},
+        {"films": [{"title": "x", "year": 1500}]},
+        {"films": [{"title": "x"}] * (MAX_MATCH_BATCH + 1)},
+        {},
+    ],
+)
+def test_match_endpoint_rejects_invalid_input(client, body):
+    assert client.post("/api/films/match", json=body).status_code == 422
+
+
+def test_match_endpoint_needs_the_tmdb_key():
+    with TestClient(app) as client:
+        response = client.post("/api/films/match", json={"films": [{"title": "Heat"}]})
+    assert response.status_code == 503

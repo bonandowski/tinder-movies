@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app.config import get_tmdb_api_key
-from app.models import Genre, Movie, Provider, StackSettings
+from app.models import MAX_MATCH_BATCH, FilmRef, Genre, Movie, Provider, StackSettings
 from app.protocol import Phase
 from app.realtime import Hub
 from app.rooms import MAX_NAME_LENGTH, MAX_PLAYERS, RoomError, RoomManager, TooManyRooms
@@ -92,6 +92,22 @@ async def movies(tmdb: TMDB, query: Annotated[StackSettings, Query()]):
     Filtri ripetibili: `?platforms=8&platforms=337&genres=35&year_min=2010&max_runtime=120`.
     """
     return await tmdb.movies(query, query.limit)
+
+
+class MatchRequest(BaseModel):
+    films: list[FilmRef] = Field(max_length=MAX_MATCH_BATCH)
+
+
+class MatchResult(BaseModel):
+    ids: list[int | None] = Field(
+        description="Id TMDB di ogni film, nello stesso ordine; null = no"
+    )
+
+
+@app.post("/api/films/match", response_model=MatchResult)
+async def match_films(body: MatchRequest, tmdb: TMDB):
+    """Riconosce film scritti come titolo + anno (es. l'export di Letterboxd) e dà l'id TMDB."""
+    return MatchResult(ids=await tmdb.match_films(body.films))
 
 
 class NewRoom(BaseModel):

@@ -13,10 +13,10 @@ import hmac
 import re
 import secrets
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 
-from app.models import Movie, StackSettings
+from app.models import Movie, RoomSettings
 from app.protocol import Phase, PlayerInfo, Result, RoomState
 
 MIN_PLAYERS = 2
@@ -42,6 +42,7 @@ class Player:
     token: str = field(default_factory=lambda: secrets.token_urlsafe(16), repr=False)
     votes: dict[int, bool] = field(default_factory=dict)  # movie_id -> ha detto sì?
     connected: bool = False
+    seen: set[int] = field(default_factory=set)  # id TMDB dei film già visti (da Letterboxd)
 
 
 def clean_name(raw: str) -> str:
@@ -57,7 +58,7 @@ class Room:
     ) -> None:
         self.code = code
         self.phase = Phase.LOBBY
-        self.settings = StackSettings()
+        self.settings = RoomSettings()
         self.movies: list[Movie] = []
         self.players: dict[str, Player] = {}  # per nome, in ordine di arrivo
         self.host = ""
@@ -125,14 +126,31 @@ class Room:
 
     # --- avvio ------------------------------------------------------------------------------
 
-    def set_settings(self, name: str, settings: StackSettings) -> None:
+    def set_settings(self, name: str, settings: RoomSettings) -> None:
         self._require_host(name)
         if self.phase is not Phase.LOBBY:
             raise RoomError("I filtri si cambiano solo in lobby")
         self.settings = settings
         self.touch()
 
-    def begin_loading(self, name: str) -> StackSettings:
+    def set_seen(self, name: str, ids: Iterable[int]) -> None:
+        """Sostituisce i film già visti da questo giocatore.
+
+        Dopo l'inizio non fa nulla (la pila è già decisa): così chi rientra a partita in corso e
+        rimanda il suo elenco non riceve errori.
+        """
+        player = self._player(name)
+        if self.phase is Phase.LOBBY:
+            player.seen = set(ids)
+            self.touch()
+
+    def excluded_ids(self) -> set[int]:
+        """Film da non proporre: visti da almeno uno dei giocatori (se l'host non l'ha escluso)."""
+        if not self.settings.exclude_seen:
+            return set()
+        return set().union(*(p.seen for p in self.players.values()))
+
+    def begin_loading(self, name: str) -> RoomSettings:
         """L'host preme Inizia. Chi non è collegato viene lasciato fuori dalla partita."""
         self._require_host(name)
         if self.phase is not Phase.LOBBY:
@@ -154,6 +172,11 @@ class Room:
             raise RoomError("Nessun caricamento in corso")
         if not movies:
             self.phase = Phase.LOBBY
+            if self.excluded_ids():
+                raise RoomError(
+                    "Nessun film trovato: i filtri sono troppo stretti o li avete già visti quasi "
+                    "tutti. Allarga i filtri o mostra anche i film già visti"
+                )
             raise RoomError("Nessun film trovato con questi filtri: provane di meno restrittivi")
         self._reset_votes()
         self.movies = movies
@@ -229,6 +252,7 @@ class Room:
                     connected=p.connected,
                     progress=len(p.votes),
                     done=total > 0 and len(p.votes) >= total,
+                    seen=len(p.seen),
                 )
                 for p in self.players.values()
             ],

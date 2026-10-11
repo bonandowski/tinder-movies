@@ -1,4 +1,4 @@
-import type { CreatedRoom, Genre, Provider, RoomInfo } from './types'
+import type { CreatedRoom, FilmRef, Genre, Provider, RoomInfo } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -41,4 +41,11 @@ export const api = {
   roomInfo: (code: string) => request<RoomInfo>(`/api/rooms/${encodeURIComponent(code)}`),
   genres: () => request<Genre[]>('/api/genres'),
   providers: () => request<Provider[]>('/api/providers'),
+  /** Id TMDB di ogni film (titolo + anno), o null se non riconosciuto. Stesso ordine. */
+  matchFilms: (films: FilmRef[]) =>
+    request<{ ids: (number | null)[] }>('/api/films/match', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ films }),
+    }).then((result) => result.ids),
 }

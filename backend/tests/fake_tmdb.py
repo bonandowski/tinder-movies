@@ -5,13 +5,14 @@ from typing import Any
 
 import httpx
 
-from app.tmdb import DISCOVER_PAGE_SIZE
+from app.tmdb import DISCOVER_PAGE_SIZE, normalize_title
 
 
 def make_details(
     movie_id: int,
     *,
     title: str | None = None,
+    original_title: str | None = None,
     poster: str | None = "/poster.jpg",
     runtime: int | None = 100,
     vote: float = 7.84,
@@ -21,6 +22,7 @@ def make_details(
     return {
         "id": movie_id,
         "title": title or f"Film {movie_id}",
+        "original_title": original_title or title or f"Film {movie_id}",
         "poster_path": poster,
         "overview": f"Trama del film {movie_id}",
         "runtime": runtime,
@@ -52,6 +54,7 @@ class FakeTMDB:
         self.requests: list[httpx.Request] = []
         self.failing_movie_ids: set[int] = set()
         self.status_override: int | None = None
+        self.rate_limited_searches = 0  # le prime N ricerche rispondono 429
 
     def requests_to(self, prefix: str) -> list[httpx.Request]:
         return [r for r in self.requests if r.url.path.startswith(f"/3{prefix}")]
@@ -73,6 +76,34 @@ class FakeTMDB:
                     "page": page,
                     "total_pages": max(1, math.ceil(len(self.catalog) / DISCOVER_PAGE_SIZE)),
                     "results": [{"id": m["id"], "title": m["title"]} for m in chunk],
+                },
+            )
+        if path == "/search/movie":
+            if self.rate_limited_searches > 0:
+                self.rate_limited_searches -= 1
+                return httpx.Response(429, json={})
+            wanted = normalize_title(params["query"])
+            year = params.get("year")
+            found = [
+                m
+                for m in self.catalog
+                if wanted in normalize_title(m["title"])
+                or wanted in normalize_title(m["original_title"])
+            ]
+            if year:
+                found = [m for m in found if m["release_date"].startswith(year)]
+            return httpx.Response(
+                200,
+                json={
+                    "results": [
+                        {
+                            "id": m["id"],
+                            "title": m["title"],
+                            "original_title": m["original_title"],
+                            "release_date": m["release_date"],
+                        }
+                        for m in found
+                    ]
                 },
             )
         if path.startswith("/movie/"):

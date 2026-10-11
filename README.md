@@ -102,6 +102,34 @@ Il refresh della pagina non fa perdere nulla: il browser conserva un token e si 
 stessa stanza allo stesso punto. Se cade la rete il client si ricollega da solo e rimanda i voti.
 Le stanze abbandonate da più di 3 ore vengono eliminate.
 
+## Film già visti (Letterboxd)
+
+Ogni giocatore può dire quali film ha già visto, e all'**Inizia** la pila scarta i film visti da
+**chiunque** nella stanza (l'host può spegnere l'esclusione con "Mostrali comunque").
+
+1. Dal sito di Letterboxd, con il proprio account: Impostazioni → Dati → «Esporta i tuoi dati»
+   (la voce potrebbe chiamarsi in modo leggermente diverso). Si scarica uno ZIP.
+2. Nella lobby, scheda **Film già visti** → "Collega Letterboxd" e si carica lo ZIP così com'è
+   (basta anche `watched.csv`; se manca si usano `ratings.csv` e `diary.csv`).
+3. Il browser legge il file, manda al server solo titolo e anno a blocchi di 150 per riconoscere i
+   film su TMDB, e conserva gli id riconosciuti in locale. Da quel momento valgono per ogni stanza
+   in cui si entra, senza ricaricare niente. "Scollega" li cancella.
+
+Cosa sa chi: il file non lascia il browser; il server vede titoli e anni durante il
+riconoscimento (non li salva: tiene solo in memoria "titolo + anno → id TMDB" per non ripetere le
+ricerche); gli altri giocatori vedono **quanti** film hai collegato, mai quali. Nessuna password.
+
+Limiti da conoscere:
+- Il riconoscimento è per titolo e anno (±1): sui film famosi è molto preciso, sui titoli rari o
+  ambigui può sbagliare o non trovare niente. Il numero "riconosciuti su N" lo mostra.
+- L'elenco va aggiornato a mano ricaricando un export nuovo.
+- Se i film visti sono molti la pila si riempie leggendo più pagine di TMDB, fino a 500 candidati:
+  con filtri molto stretti può restare più corta del richiesto.
+- **L'API ufficiale di Letterboxd non è usata**: si ottiene solo su richiesta, senza garanzia, e la
+  loro pagina esclude alcuni usi. Se arrivassero le chiavi, cambierebbe solo il modo in cui l'elenco
+  di id arriva al giocatore (invece del file, "Collega Letterboxd" con login): stanza, esclusione e
+  protocollo restano gli stessi.
+
 ## API (fase 1)
 
 | Endpoint | Cosa fa |
@@ -136,6 +164,7 @@ o rifiuta la chiave, `422` se un filtro non è valido.
 
 | Endpoint | Cosa fa |
 |----------|---------|
+| `POST /api/films/match` | Riconosce film da titolo + anno (max 200): `{films:[{title, year?}]}` → `{ids:[id\|null,…]}` nello stesso ordine |
 | `POST /api/rooms` | Crea una stanza. Body `{"name": "Anna"}` → `{code, name, token}` |
 | `GET /api/rooms/{code}` | La stanza esiste e ci si può entrare? → `{code, phase, players, joinable}` (404 se no) |
 | `WS /ws/{code}` | Tempo reale della stanza (vedi sotto) |
@@ -148,7 +177,8 @@ Messaggi JSON, sempre con un campo `type` (i tipi sono in `backend/app/protocol.
 | `type` | Campi | Chi può | Effetto |
 |--------|-------|---------|---------|
 | `join` | `name`, `token?` | tutti, **primo messaggio** | Entra; con `token` rientra come lo stesso giocatore |
-| `set_settings` | `settings` (filtri + `limit`) | host, lobby | Cambia i filtri |
+| `set_settings` | `settings` (filtri, `limit`, `exclude_seen`) | host, lobby | Cambia i filtri |
+| `set_seen` | `ids` (id TMDB, max 20.000) | tutti, lobby | Dichiara i propri film già visti, sostituendo l'elenco; dopo l'inizio non fa nulla |
 | `start` | | host, lobby | Carica i film da TMDB e inizia |
 | `swipe` | `movie_id`, `like` | tutti | Vota un film (un voto doppio viene ignorato) |
 | `finish` | | host | Chiude subito la votazione |
@@ -162,7 +192,7 @@ Messaggi JSON, sempre con un campo `type` (i tipi sono in `backend/app/protocol.
 | `type` | Contenuto |
 |--------|-----------|
 | `welcome` | `code`, `name` (può avere un numero se era già preso), `token` da conservare |
-| `state` | Fotografia della stanza: `phase` (`lobby`, `loading`, `swiping`, `finished`), giocatori con avanzamento, filtri, `position` (prossimo film da votare), `matches` (id), `results` (classifica, solo a fine partita). Arriva dopo ogni cambiamento e sostituisce la precedente |
+| `state` | Fotografia della stanza: `phase` (`lobby`, `loading`, `swiping`, `finished`), giocatori con avanzamento e quanti film già visti hanno dichiarato (`seen`, mai quali), filtri, `position` (prossimo film da votare), `matches` (id), `results` (classifica, solo a fine partita). Arriva dopo ogni cambiamento e sostituisce la precedente |
 | `stack` | La pila di film, uguale per tutti: all'inizio e a chi rientra a partita in corso |
 | `match` | `movie_id` appena diventato match (dopo lo `state` che lo include) |
 | `error` | `message`; con `fatal: true` il server chiude la connessione |

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Catalog } from '../useCatalog'
-import type { StackSettings } from '../types'
+import type { RoomSettings } from '../types'
 
 const YEARS: { label: string; value: number | null }[] = [
   { label: 'Qualsiasi', value: null },
@@ -22,9 +22,9 @@ const toggle = (list: number[], id: number) =>
   list.includes(id) ? list.filter((x) => x !== id) : [...list, id]
 
 interface Props {
-  settings: StackSettings
+  settings: RoomSettings
   catalog: Catalog | null
-  onChange: (settings: StackSettings) => void
+  onChange: (settings: RoomSettings) => void
 }
 
 /** Filtri modificabili (solo l'host li vede così). */
@@ -90,6 +90,25 @@ export function FiltersEditor({ settings, catalog, onChange }: Props) {
         value={settings.max_runtime}
         onPick={(max_runtime) => onChange({ ...settings, max_runtime })}
       />
+      <div className="field">
+        <span className="label">Film già visti</span>
+        <div className="chips">
+          {[
+            { label: 'Nascondi quelli visti da qualcuno', value: true },
+            { label: 'Mostrali comunque', value: false },
+          ].map((option) => (
+            <button
+              key={option.label}
+              type="button"
+              className="chip"
+              aria-pressed={settings.exclude_seen === option.value}
+              onClick={() => onChange({ ...settings, exclude_seen: option.value })}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
       <Choice
         label="Quanti film"
         options={LIMITS.map((n) => ({ label: String(n), value: n }))}
@@ -140,6 +159,7 @@ export function FiltersSummary({ settings, catalog }: Omit<Props, 'onChange'>) {
     ['Generi', names(settings.genres, catalog?.genres)],
     ['Uscito', settings.year_min ? `dal ${settings.year_min}` : 'qualsiasi'],
     ['Durata', settings.max_runtime ? `max ${settings.max_runtime} min` : 'qualsiasi'],
+    ['Film già visti', settings.exclude_seen ? 'nascosti (se qualcuno li ha collegati)' : 'mostrati comunque'],
     ['Quanti film', String(settings.limit)],
   ]
   return (

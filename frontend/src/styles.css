@@ -721,3 +721,18 @@ p {
     align-items: center;
   }
 }
+
+/* --- scheda "Film già visti" ---------------------------------------------------------------- */
+
+.file-input {
+  display: none;
+}
+
+.btn.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+details > summary {
+  cursor: pointer;
+}

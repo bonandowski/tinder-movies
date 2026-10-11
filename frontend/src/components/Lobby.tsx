@@ -3,6 +3,7 @@ import type { RoomApi } from '../useRoom'
 import { useCatalog } from '../useCatalog'
 import { FiltersEditor, FiltersSummary } from './Filters'
 import PlayerList from './PlayerList'
+import SeenCard from './SeenCard'
 
 interface Props {
   room: RoomApi
@@ -52,6 +53,8 @@ export default function Lobby({ room, onLeave }: Props) {
         <h2>Giocatori ({state.players.length})</h2>
         <PlayerList players={state.players} you={state.you} onKick={isHost ? room.kick : undefined} />
       </section>
+
+      <SeenCard onChange={room.setSeen} />
 
       <section className="card">
         <h2>{isHost ? 'Che film cercate?' : 'Filtri scelti da ' + state.host}</h2>

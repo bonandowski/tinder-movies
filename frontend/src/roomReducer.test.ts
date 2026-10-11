@@ -20,7 +20,7 @@ const state = (over: Partial<RoomState> = {}): RoomState => ({
   you: 'Anna',
   host: 'Anna',
   players: [],
-  settings: { platforms: [], genres: [], year_min: null, max_runtime: null, limit: 30 },
+  settings: { platforms: [], genres: [], year_min: null, max_runtime: null, limit: 30, exclude_seen: true },
   total: 3,
   position: 0,
   matches: [],

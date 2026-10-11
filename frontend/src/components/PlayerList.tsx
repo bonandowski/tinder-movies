@@ -35,6 +35,9 @@ export default function PlayerList({ players, you, total, onKick }: Props) {
                 title={player.connected ? 'Collegato' : 'Non collegato'}
               />
             </div>
+            {player.seen > 0 && (
+              <span className="muted small">{player.seen.toLocaleString('it-IT')} film visti collegati</span>
+            )}
             {total ? (
               <div className="bar" aria-label={`${player.progress} su ${total}`}>
                 <i style={{ width: `${(player.progress / total) * 100}%` }} />

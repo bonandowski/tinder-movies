@@ -1,6 +1,6 @@
 import pytest
 
-from app.models import Movie, StackSettings
+from app.models import Movie, RoomSettings, StackSettings
 from app.protocol import Phase
 from app.rooms import (
     MAX_NAME_LENGTH,
@@ -382,3 +382,87 @@ def test_room_limit():
         manager.create("Anna")
     with pytest.raises(TooManyRooms):
         manager.create("Anna")
+
+
+# --- film già visti ----------------------------------------------------------------------------
+
+
+def lobby_room(names=("Anna", "Luca")) -> Room:
+    room = Room("ABCD", names[0])
+    for name in names[1:]:
+        room.add_player(name)
+    for player in room.players.values():
+        player.connected = True
+    return room
+
+
+def test_excluded_ids_are_the_films_seen_by_anyone():
+    room = lobby_room(("Anna", "Luca", "Marta"))
+    room.set_seen("Anna", [1, 2, 3])
+    room.set_seen("Luca", [3, 4])
+    assert room.excluded_ids() == {1, 2, 3, 4}  # Marta non ha dichiarato nulla: non blocca
+
+
+def test_nothing_is_excluded_when_nobody_declared_anything():
+    assert lobby_room().excluded_ids() == set()
+
+
+def test_host_can_choose_to_show_seen_films_too():
+    room = lobby_room()
+    room.set_seen("Anna", [1, 2])
+    room.set_settings("Anna", RoomSettings(exclude_seen=False))
+    assert room.excluded_ids() == set()
+
+
+def test_set_seen_replaces_the_previous_list():
+    room = lobby_room()
+    room.set_seen("Anna", [1, 2])
+    room.set_seen("Anna", [9])
+    assert room.excluded_ids() == {9}
+    room.set_seen("Anna", [])
+    assert room.excluded_ids() == set()
+
+
+def test_set_seen_after_the_start_changes_nothing_and_does_not_fail():
+    room = started_room()
+    room.set_seen("Anna", [1, 2, 3])  # es. chi rientra rimanda il suo elenco
+    assert room.excluded_ids() == set()
+
+
+def test_set_seen_from_a_stranger_is_refused():
+    with pytest.raises(RoomError, match="Non sei"):
+        lobby_room().set_seen("Fantasma", [1])
+
+
+def test_the_state_tells_how_many_films_each_player_declared_but_not_which():
+    room = lobby_room()
+    room.set_seen("Anna", [1, 2, 3])
+    state = room.state_for("Luca")
+    assert [(p.name, p.seen) for p in state.players] == [("Anna", 3), ("Luca", 0)]
+    assert set(state.players[0].model_dump()) == {
+        "name",
+        "is_host",
+        "connected",
+        "progress",
+        "done",
+        "seen",
+    }  # il numero sì, gli id no
+
+
+def test_seen_films_survive_a_new_game_and_leaving_players_take_theirs_away():
+    room = lobby_room(("Anna", "Luca", "Marta"))
+    room.set_seen("Luca", [5])
+    room.begin_loading("Anna")
+    room.finish_loading([movie(1), movie(2)])
+    room.reset("Anna")
+    assert room.excluded_ids() == {5}
+    room.remove_player("Luca")
+    assert room.excluded_ids() == set()
+
+
+def test_empty_pile_with_seen_films_explains_it():
+    room = lobby_room()
+    room.set_seen("Anna", [1])
+    room.begin_loading("Anna")
+    with pytest.raises(RoomError, match="già visti"):
+        room.finish_loading([])

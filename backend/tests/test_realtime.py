@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 
 from app.main import app
+from app.protocol import MAX_SEEN
 from app.realtime import (
     CLOSE_BAD_REQUEST,
     CLOSE_KICKED,
@@ -114,7 +115,14 @@ def test_players_see_each_other_in_the_lobby(game):
 
 def test_host_changes_settings_and_everybody_sees_them(game):
     _, anna, luca = game
-    settings = {"genres": [35], "platforms": [8], "year_min": 2010, "max_runtime": 120, "limit": 10}
+    settings = {
+        "genres": [35],
+        "platforms": [8],
+        "year_min": 2010,
+        "max_runtime": 120,
+        "limit": 10,
+        "exclude_seen": False,
+    }
     anna.send_json({"type": "set_settings", "settings": settings})
     state = receive_state(luca, lambda s: s["settings"]["limit"] == 10)
     assert state["settings"] == settings
@@ -355,3 +363,66 @@ def test_empty_room_is_deleted_when_the_last_player_leaves(client, stack):
         for _ in range(5):
             anna.receive_json()
     assert client.get(f"/api/rooms/{room['code']}").status_code == 404
+
+
+# --- film già visti ----------------------------------------------------------------------------
+
+
+def test_players_declare_seen_films_and_everybody_sees_only_the_count(game):
+    _, anna, luca = game
+    anna.send_json({"type": "set_seen", "ids": [1, 2]})
+    state = receive_state(luca, lambda s: s["players"][0]["seen"] == 2)
+    assert [p["seen"] for p in state["players"]] == [2, 0]
+    assert "ids" not in str(state)
+
+
+def test_the_pile_skips_films_seen_by_anybody(game, fake_tmdb):
+    _, anna, luca = game
+    fake_tmdb.catalog = [make_details(i) for i in range(1, 8)]
+    anna.send_json({"type": "set_seen", "ids": [1, 2]})
+    luca.send_json({"type": "set_seen", "ids": [2, 3]})
+    receive_state(luca, lambda s: s["players"][0]["seen"] == 2 and s["players"][1]["seen"] == 2)
+    assert start(anna, luca) == [4, 5, 6, 7]
+
+
+def test_host_can_show_seen_films_too(game, fake_tmdb):
+    _, anna, luca = game
+    anna.send_json({"type": "set_settings", "settings": {"exclude_seen": False}})
+    anna.send_json({"type": "set_seen", "ids": [1, 2]})
+    receive_state(
+        luca, lambda s: s["players"][0]["seen"] == 2 and not s["settings"]["exclude_seen"]
+    )
+    assert start(anna, luca) == [1, 2, 3]
+
+
+def test_all_films_seen_explains_why_the_pile_is_empty(game):
+    _, anna, luca = game
+    luca.send_json({"type": "set_seen", "ids": [1, 2, 3]})
+    receive_state(anna, lambda s: s["players"][1]["seen"] == 3)
+    anna.send_json({"type": "start"})
+    assert "già visti" in receive(anna, "error")["message"]
+    assert receive_state(luca, lambda s: s["phase"] == "lobby")
+
+
+def test_a_big_list_of_seen_films_fits_in_one_message(game):
+    _, anna, luca = game
+    anna.send_json({"type": "set_seen", "ids": list(range(1000, 6000))})
+    assert receive_state(luca, lambda s: s["players"][0]["seen"] == 5000)
+
+
+def test_a_huge_list_is_rejected_without_breaking_the_connection(game):
+    _, anna, _ = game
+    anna.send_json({"type": "set_seen", "ids": list(range(1, MAX_SEEN + 2))})
+    assert receive(anna, "error")["fatal"] is False
+    anna.send_json({"type": "ping"})
+    assert receive(anna, "pong")
+
+
+def test_rejoining_mid_game_and_resending_seen_films_is_harmless(game, tokens, client, stack):
+    code, anna, luca = game
+    start(anna, luca)
+    back = connect(client, stack, code, token=tokens["Luca"])
+    receive(back, "welcome")
+    back.send_json({"type": "set_seen", "ids": [1, 2]})
+    state = receive_state(back)
+    assert state["phase"] == "swiping" and state["players"][1]["seen"] == 0

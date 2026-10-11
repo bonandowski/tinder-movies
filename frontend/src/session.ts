@@ -25,3 +25,32 @@ export const saveName = (name: string) => write(NAME_KEY, name)
 export const loadToken = (code: string) => read(tokenKey(code))
 export const saveToken = (code: string, token: string) => write(tokenKey(code), token)
 export const clearToken = (code: string) => write(tokenKey(code), null)
+
+// I film già visti (id TMDB) restano solo nel browser: al server arrivano quando si entra in una stanza.
+
+const SEEN_KEY = 'tm:seen'
+
+export interface SeenData {
+  ids: number[]
+  /** Film nel file e film riconosciuti. */
+  total: number
+  matched: number
+  source: string
+  importedAt: string
+}
+
+export function loadSeen(): SeenData | null {
+  const raw = read(SEEN_KEY)
+  if (!raw) return null
+  try {
+    const data = JSON.parse(raw) as SeenData
+    const valid =
+      Array.isArray(data.ids) && data.ids.every((id) => Number.isInteger(id) && id > 0)
+    return valid ? data : null
+  } catch {
+    return null
+  }
+}
+
+export const saveSeen = (data: SeenData) => write(SEEN_KEY, JSON.stringify(data))
+export const clearSeen = () => write(SEEN_KEY, null)

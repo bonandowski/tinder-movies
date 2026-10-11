@@ -40,3 +40,21 @@ class StackSettings(MovieFilters):
     """Impostazioni di una pila: i filtri più quanti film mostrare."""
 
     limit: int = Field(30, ge=1, le=100, description="Dimensione massima della pila")
+
+
+class RoomSettings(StackSettings):
+    """Impostazioni di una stanza: quelle della pila più cosa fare dei film già visti."""
+
+    exclude_seen: bool = Field(
+        True, description="Scarta i film che almeno un giocatore ha già visto"
+    )
+
+
+MAX_MATCH_BATCH = 200  # film per richiesta di riconoscimento
+
+
+class FilmRef(BaseModel):
+    """Un film come lo scrive Letterboxd: titolo e anno, senza id."""
+
+    title: str = Field(min_length=1, max_length=300)
+    year: int | None = Field(None, ge=1850, le=2100)

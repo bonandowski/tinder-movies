@@ -13,15 +13,26 @@ interface Props {
   onChange: (settings: RoomSettings) => void
 }
 
-/** Filtri modificabili (solo l'host li vede così): i principali, poi "Altri filtri". */
-export function FiltersEditor({ settings, catalog, vetoed, onChange }: Props) {
+/**
+ * Filtri modificabili (solo l'host li vede così): i principali, poi "Altri filtri".
+ *
+ * Si lavora su una copia locale: ogni modifica parte dall'ultima fatta qui, non dall'ultimo stato
+ * confermato dal server. Altrimenti, con un po' di latenza, due clic ravvicinati si annullano.
+ * Va bene perché i filtri li cambia solo l'host.
+ */
+export function FiltersEditor({ settings: initial, catalog, vetoed, onChange }: Props) {
+  const [settings, setSettings] = useState(initial)
   const [allProviders, setAllProviders] = useState(false)
   const [advanced, setAdvanced] = useState(() => activeAdvancedCount(settings) > 0)
   const providers = catalog?.providers ?? []
   const shown = allProviders
     ? providers
     : providers.filter((p, i) => i < VISIBLE_PROVIDERS || settings.platforms.includes(p.id))
-  const set = (patch: Partial<RoomSettings>) => onChange({ ...settings, ...patch })
+  const set = (patch: Partial<RoomSettings>) => {
+    const next = { ...settings, ...patch }
+    setSettings(next)
+    onChange(next)
+  }
   const active = activeAdvancedCount(settings)
 
   return (

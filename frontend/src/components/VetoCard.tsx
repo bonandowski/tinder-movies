@@ -13,13 +13,16 @@ interface Props {
 
 /** "I tuoi veti": generi che non vuoi. In gruppo basta il veto di uno per toglierli dalla pila. */
 export default function VetoCard({ you, players, genres, solo, onChange }: Props) {
-  const mine = players.find((p) => p.name === you)?.vetoes ?? loadVetoes()
+  // Come per i filtri dell'host: si parte dai veti salvati nel browser (li riceve anche il server
+  // quando entri) e ogni clic parte dall'ultimo clic, non dall'ultima conferma del server.
+  const [mine, setMine] = useState<number[]>(loadVetoes)
   const [open, setOpen] = useState(false)
   const group = groupVetoes(players, genres)
   const names = (ids: number[]) => genres.filter((g) => ids.includes(g.id)).map((g) => g.name.toLowerCase())
 
   function pick(genre: number) {
     const next = toggle(mine, genre)
+    setMine(next)
     saveVetoes(next) // valgono anche per le prossime stanze
     onChange(next)
   }

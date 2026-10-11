@@ -26,7 +26,17 @@ class Movie(BaseModel):
 class MovieFilters(BaseModel):
     """Filtri della pila. Lista vuota / None = nessun vincolo."""
 
-    platforms: list[int] = Field(default_factory=list, description="ID provider TMDB (OR)")
-    genres: list[int] = Field(default_factory=list, description="ID generi TMDB (OR)")
+    platforms: list[int] = Field(
+        default_factory=list, max_length=50, description="ID provider TMDB (OR)"
+    )
+    genres: list[int] = Field(
+        default_factory=list, max_length=50, description="ID generi TMDB (OR)"
+    )
     year_min: int | None = Field(None, ge=1900, le=2100, description="Anno di uscita minimo")
     max_runtime: int | None = Field(None, ge=30, le=600, description="Durata massima in minuti")
+
+
+class StackSettings(MovieFilters):
+    """Impostazioni di una pila: i filtri più quanti film mostrare."""
+
+    limit: int = Field(30, ge=1, le=100, description="Dimensione massima della pila")

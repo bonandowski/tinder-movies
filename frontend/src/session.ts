@@ -31,12 +31,13 @@ export const clearToken = (code: string) => write(tokenKey(code), null)
 const SEEN_KEY = 'tm:seen'
 
 export interface SeenData {
+  /** Tutti i film visti noti: l'unione di export e RSS, che si accumula nel tempo. */
   ids: number[]
-  /** Film nel file e film riconosciuti. */
-  total: number
-  matched: number
-  source: string
-  importedAt: string
+  /** L'ultimo export caricato: film nel file e film riconosciuti. */
+  exportInfo?: { total: number; matched: number; source: string; importedAt: string }
+  /** Utente Letterboxd da cui leggere la RSS (ultimi ~50 film del diario). */
+  username?: string
+  syncedAt?: string
 }
 
 export function loadSeen(): SeenData | null {

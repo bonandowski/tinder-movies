@@ -12,7 +12,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app.config import get_tmdb_api_key
+from app.config import get_letterboxd_base_url, get_tmdb_api_key
+from app.letterboxd import DiaryEntry, LetterboxdClient, LetterboxdError
 from app.models import MAX_MATCH_BATCH, FilmRef, Genre, Movie, Provider, StackSettings
 from app.protocol import Phase
 from app.realtime import Hub
@@ -36,6 +37,7 @@ async def purge_rooms_forever(rooms: RoomManager) -> None:
 async def lifespan(app: FastAPI):
     api_key = get_tmdb_api_key()
     app.state.tmdb = TMDBClient(api_key) if api_key else None
+    app.state.letterboxd = LetterboxdClient(base_url=get_letterboxd_base_url())
     app.state.rooms = RoomManager()
     app.state.hub = Hub(app.state.rooms)
     purger = asyncio.create_task(purge_rooms_forever(app.state.rooms))
@@ -45,6 +47,7 @@ async def lifespan(app: FastAPI):
         await purger
     if app.state.tmdb is not None:
         await app.state.tmdb.aclose()
+    await app.state.letterboxd.aclose()
 
 
 app = FastAPI(title="Tinder Movies", lifespan=lifespan)
@@ -108,6 +111,27 @@ class MatchResult(BaseModel):
 async def match_films(body: MatchRequest, tmdb: TMDB):
     """Riconosce film scritti come titolo + anno (es. l'export di Letterboxd) e dà l'id TMDB."""
     return MatchResult(ids=await tmdb.match_films(body.films))
+
+
+def get_letterboxd(conn: HTTPConnection) -> LetterboxdClient:
+    return conn.app.state.letterboxd
+
+
+class RecentFilms(BaseModel):
+    username: str
+    films: list[DiaryEntry]
+
+
+@app.get("/api/letterboxd/{username}/recent", response_model=RecentFilms)
+async def letterboxd_recent(
+    username: str, letterboxd: Annotated[LetterboxdClient, Depends(get_letterboxd)]
+):
+    """Ultimi film del diario pubblico di un utente Letterboxd (~50, dalla RSS), con id TMDB."""
+    try:
+        films = await letterboxd.recent(username)
+    except LetterboxdError as exc:
+        raise HTTPException(exc.status_code, str(exc)) from exc
+    return RecentFilms(username=username, films=films)
 
 
 class NewRoom(BaseModel):

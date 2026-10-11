@@ -107,13 +107,22 @@ Le stanze abbandonate da più di 3 ore vengono eliminate.
 Ogni giocatore può dire quali film ha già visto, e all'**Inizia** la pila scarta i film visti da
 **chiunque** nella stanza (l'host può spegnere l'esclusione con "Mostrali comunque").
 
-1. Dal sito di Letterboxd, con il proprio account: Impostazioni → Dati → «Esporta i tuoi dati»
-   (la voce potrebbe chiamarsi in modo leggermente diverso). Si scarica uno ZIP.
-2. Nella lobby, scheda **Film già visti** → "Collega Letterboxd" e si carica lo ZIP così com'è
-   (basta anche `watched.csv`; se manca si usano `ratings.csv` e `diary.csv`).
-3. Il browser legge il file, manda al server solo titolo e anno a blocchi di 150 per riconoscere i
-   film su TMDB, e conserva gli id riconosciuti in locale. Da quel momento valgono per ogni stanza
-   in cui si entra, senza ricaricare niente. "Scollega" li cancella.
+Due fonti, che si sommano (l'elenco salvato nel browser cresce e non perde mai film):
+
+- **Nome utente Letterboxd** (scheda **Film già visti** nella lobby): il server legge la RSS
+  pubblica del diario, `letterboxd.com/<utente>/rss/`, che contiene **solo le ~50 voci più recenti**
+  (in ordine di visione, senza paginazione né ordinamento), ognuna già con l'id TMDB. Si rilegge a
+  ogni ingresso in una stanza, quindi i film nuovi si aggiungono da soli. Nessuna password: il
+  diario è pubblico.
+- **Export completo**, per tutto lo storico, una volta sola: dal sito di Letterboxd, Impostazioni →
+  Dati → «Esporta i tuoi dati» (la voce potrebbe chiamarsi in modo leggermente diverso), poi si
+  carica lo ZIP così com'è (basta anche `watched.csv`; se manca si usano `ratings.csv` e
+  `diary.csv`). Il browser legge il file e manda al server solo titolo e anno, a blocchi di 150, per
+  riconoscere i film su TMDB.
+
+Export una volta + nome utente = elenco completo che resta aggiornato, purché tra una stanza e
+l'altra non si registrino più di ~50 film. Solo nome utente = si parte dagli ultimi 50 e si cresce.
+"Scollega" cancella tutto.
 
 Cosa sa chi: il file non lascia il browser; il server vede titoli e anni durante il
 riconoscimento (non li salva: tiene solo in memoria "titolo + anno → id TMDB" per non ripetere le
@@ -122,9 +131,14 @@ ricerche); gli altri giocatori vedono **quanti** film hai collegato, mai quali. 
 Limiti da conoscere:
 - Il riconoscimento è per titolo e anno (±1): sui film famosi è molto preciso, sui titoli rari o
   ambigui può sbagliare o non trovare niente. Il numero "riconosciuti su N" lo mostra.
-- L'elenco va aggiornato a mano ricaricando un export nuovo.
+- Nella RSS ci sono solo i film registrati nel **diario**: un voto dato direttamente sulla pagina del
+  film non compare (nell'export sì). La RSS si rilegge al massimo ogni 10 minuti per utente.
+- Letterboxd potrebbe bloccare o rallentare le richieste del server: in quel caso l'app lo dice e usa
+  i film già salvati.
 - Se i film visti sono molti la pila si riempie leggendo più pagine di TMDB, fino a 500 candidati:
   con filtri molto stretti può restare più corta del richiesto.
+- I termini d'uso di Letterboxd vietano gli strumenti automatici di estrazione dei dati (scraping):
+  per questo l'app non legge le pagine del profilo né fa login, ma solo la RSS pubblica e l'export.
 - **L'API ufficiale di Letterboxd non è usata**: si ottiene solo su richiesta, senza garanzia, e la
   loro pagina esclude alcuni usi. Se arrivassero le chiavi, cambierebbe solo il modo in cui l'elenco
   di id arriva al giocatore (invece del file, "Collega Letterboxd" con login): stanza, esclusione e
@@ -164,6 +178,7 @@ o rifiuta la chiave, `422` se un filtro non è valido.
 
 | Endpoint | Cosa fa |
 |----------|---------|
+| `GET /api/letterboxd/{utente}/recent` | Ultimi ~50 film del diario pubblico (RSS): `{username, films:[{tmdb_id, title, year, rating, watched_date, rewatch}]}`; 404 se l'utente non esiste |
 | `POST /api/films/match` | Riconosce film da titolo + anno (max 200): `{films:[{title, year?}]}` → `{ids:[id\|null,…]}` nello stesso ordine |
 | `POST /api/rooms` | Crea una stanza. Body `{"name": "Anna"}` → `{code, name, token}` |
 | `GET /api/rooms/{code}` | La stanza esiste e ci si può entrare? → `{code, phase, players, joinable}` (404 se no) |

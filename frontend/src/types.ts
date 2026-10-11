@@ -43,6 +43,16 @@ export interface FilmRef {
   year: number | null
 }
 
+/** Un film del diario pubblico di Letterboxd (dalla RSS). */
+export interface DiaryEntry {
+  tmdb_id: number
+  title: string
+  year: number | null
+  rating: number | null
+  watched_date: string | null
+  rewatch: boolean
+}
+
 /** Quanti film già visti il server accetta da un giocatore (MAX_SEEN nel backend). */
 export const MAX_SEEN = 20_000
 

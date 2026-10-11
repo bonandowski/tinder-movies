@@ -1,3 +1,4 @@
+import type { SeenData } from './session'
 import type { FilmRef } from './types'
 import { MAX_SEEN } from './types'
 
@@ -51,4 +52,26 @@ async function withRetries<T>(run: () => Promise<T>, wait: (ms: number) => Promi
       await wait(RETRY_DELAY_MS * attempt)
     }
   }
+}
+
+/**
+ * Aggiunge film visti a quelli salvati senza perderne nessuno: la RSS dà solo gli ultimi ~50, quindi
+ * l'elenco completo si costruisce accumulando (un export una volta, poi la RSS a ogni stanza).
+ */
+export function mergeSeen(
+  previous: SeenData | null,
+  update: Partial<SeenData> & { ids: number[] },
+): { data: SeenData; added: number } {
+  const known = new Set(previous?.ids ?? [])
+  const fresh = update.ids.filter((id) => !known.has(id))
+  const ids = [...(previous?.ids ?? []), ...new Set(fresh)].slice(0, MAX_SEEN)
+  return { data: { ...previous, ...update, ids }, added: ids.length - known.size }
+}
+
+/** "dave", "@dave", "letterboxd.com/dave", "https://letterboxd.com/dave/films/" -> "dave". */
+export function parseUsername(input: string): string | null {
+  const text = input.trim()
+  const fromUrl = /letterboxd\.com\/([^/?#\s]+)/i.exec(text)
+  const candidate = (fromUrl ? fromUrl[1] : text).replace(/^@/, '')
+  return /^[A-Za-z0-9_]{1,40}$/.test(candidate) ? candidate : null
 }

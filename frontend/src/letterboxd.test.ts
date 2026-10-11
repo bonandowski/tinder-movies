@@ -1,6 +1,6 @@
 import { zipSync, strToU8 } from 'fflate'
 import { describe, expect, it, vi } from 'vitest'
-import { matchAll, BATCH_SIZE } from './importSeen'
+import { matchAll, mergeSeen, parseUsername, BATCH_SIZE } from './importSeen'
 import { ImportError, filmsFromBytes, filmsFromCsv, parseCsv } from './letterboxd'
 
 const WATCHED = `Date,Name,Year,Letterboxd URI
@@ -127,5 +127,41 @@ describe('matchAll', () => {
 
   it('handles an empty list', async () => {
     expect(await matchAll([], async () => [], undefined, noWait)).toEqual({ ids: [], total: 0, matched: 0 })
+  })
+})
+
+describe('mergeSeen', () => {
+  it('starts from nothing', () => {
+    const { data, added } = mergeSeen(null, { ids: [1, 2, 2], username: 'anna' })
+    expect(data).toEqual({ ids: [1, 2], username: 'anna' })
+    expect(added).toBe(2)
+  })
+
+  it('accumulates: the RSS adds the new films and never removes the old ones', () => {
+    const exported = { ids: [1, 2, 3], exportInfo: { total: 4, matched: 3, source: 'x.zip', importedAt: 't0' } }
+    const { data, added } = mergeSeen(exported, { ids: [3, 4], username: 'anna', syncedAt: 't1' })
+    expect(data.ids).toEqual([1, 2, 3, 4])
+    expect(added).toBe(1)
+    expect(data.exportInfo?.matched).toBe(3)
+    expect(data.syncedAt).toBe('t1')
+  })
+
+  it('counts zero when nothing is new', () => {
+    expect(mergeSeen({ ids: [1, 2] }, { ids: [2, 1] }).added).toBe(0)
+  })
+})
+
+describe('parseUsername', () => {
+  it.each([
+    ['dave', 'dave'],
+    ['  @Dave_99 ', 'Dave_99'],
+    ['letterboxd.com/dave', 'dave'],
+    ['https://letterboxd.com/dave/films/', 'dave'],
+    ['https://boxd.it/abc', null],
+    ['dave smith', null],
+    ['', null],
+    ['àlex', null],
+  ])('%s -> %s', (input, expected) => {
+    expect(parseUsername(input)).toBe(expected)
   })
 })

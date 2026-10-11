@@ -1,12 +1,15 @@
 import asyncio
 import contextlib
 import logging
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, WebSocket
 from fastapi.requests import HTTPConnection
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app.config import get_tmdb_api_key
@@ -143,3 +146,31 @@ async def room_socket(
 ):
     """Tempo reale di una stanza. Messaggi: vedi `app/protocol.py` e il README."""
     await websocket.app.state.hub.serve(websocket, code, tmdb)
+
+
+def mount_frontend(app: FastAPI, dist: Path) -> None:
+    """Serve il frontend compilato (`frontend/dist`) dallo stesso servizio. Senza build: niente.
+
+    Va chiamata dopo aver definito le rotte API: la rotta "tutto il resto" deve essere l'ultima.
+    """
+    dist = dist.resolve()
+    index = dist / "index.html"
+    if not index.is_file():
+        return
+    app.mount("/assets", StaticFiles(directory=dist / "assets"), name="assets")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    async def frontend(path: str):
+        if path.split("/", 1)[0] in ("api", "ws"):
+            raise HTTPException(404)
+        candidate = (dist / path).resolve()
+        if path and candidate.is_file() and candidate.is_relative_to(dist):
+            return FileResponse(candidate)
+        # Qualsiasi altro percorso (es. /r/ABCD) è una pagina del frontend: decide lui.
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
+
+
+mount_frontend(
+    app,
+    Path(os.getenv("FRONTEND_DIST") or Path(__file__).resolve().parents[2] / "frontend" / "dist"),
+)

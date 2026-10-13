@@ -1172,3 +1172,10 @@ details > summary {
   text-decoration-color: var(--like);
   text-decoration-thickness: 2px;
 }
+
+.hl-right {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: 700;
+  color: #ffc971;
+}

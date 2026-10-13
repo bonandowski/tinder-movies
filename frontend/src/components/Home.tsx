@@ -57,7 +57,7 @@ export default function Home({ flash, navigate }: Props) {
           compagnia, <span className="hl-more">ancora di più</span>.
         </h1>
         <p className="muted">
-          Basta discussioni e scroll infiniti, pochi swipe e <s>l’amore</s> il film giusto è lì che vi aspetta.
+          Basta discussioni e scroll infiniti, pochi swipe e <s>l’amore</s> <span className="hl-right">il film giusto</span> è lì che vi aspetta.
         </p>
       </div>
 

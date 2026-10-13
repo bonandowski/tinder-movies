@@ -47,52 +47,63 @@ export default function Home({ flash, navigate }: Props) {
   }
 
   return (
-    <main className="app fill home">
-      <div className="hero-title">
-        <div className="home-emoji" aria-hidden>
-          🎬🍿
-        </div>
+    <main className="app fill center home">
+      <div className="field" style={{ gap: 6 }}>
         <h1 className="logo">
-          Tinder <span>Movies</span>
+          🎬 Tinder <span>Movies</span>
         </h1>
-        <p className="muted">Swipe insieme, e quando dite tutti sì è match: il film di stasera è deciso.</p>
+        <p className="muted">Swipe a destra se vi va, a sinistra se no: quando tutti dicono sì, è match!</p>
       </div>
 
       {(flash || error) && <p className="error">{error ?? flash}</p>}
 
-      <div className="field home-actions">
-        <input
-          className="input"
-          value={name}
-          maxLength={20}
-          autoComplete="nickname"
-          placeholder="Come ti chiami?"
-          aria-label="Il tuo nome"
-          onChange={(e) => setName(e.target.value)}
-        />
-        <button className="btn primary big" disabled={busy} onClick={() => create(false)}>
+      <form className="card" onSubmit={(e) => (e.preventDefault(), create(false))}>
+        <label className="field">
+          <span className="label">Il tuo nome</span>
+          <input
+            className="input"
+            value={name}
+            maxLength={20}
+            autoComplete="nickname"
+            placeholder="Come ti chiami?"
+            aria-label="Il tuo nome"
+            onChange={(e) => setName(e.target.value)}
+          />
+        </label>
+        <button className="btn primary" disabled={busy}>
           Crea una stanza
         </button>
-        <form className="row" onSubmit={join}>
+      </form>
+
+      <div className="divider">oppure</div>
+
+      <form className="card" onSubmit={join}>
+        <span className="label">Hai già un codice?</span>
+        <div className="row">
           <input
             className="input code grow"
             value={code}
             autoCapitalize="characters"
             autoComplete="off"
-            placeholder="CODICE"
+            placeholder="ABCD"
             aria-label="Codice stanza"
             onChange={(e) => setCode(normalizeCode(e.target.value))}
           />
           <button className="btn" disabled={busy || code.length < 4}>
             Entra
           </button>
-        </form>
-        <button className="btn ghost" disabled={busy} onClick={() => create(true)}>
-          🎲 Non sai cosa guardare? Scegli da solo
-        </button>
-      </div>
+        </div>
+      </form>
 
-      <p className="muted small center-text">Film in streaming in Italia · dati TMDB</p>
+      <div className="divider">da solo</div>
+
+      <button className="card solo-card" disabled={busy} onClick={() => create(true)}>
+        <span>
+          <strong>🎲 Non sai cosa guardare?</strong>
+          <span className="muted small"> Swipe da solo, poi i film che ti piacciono si sfidano.</span>
+        </span>
+        <span className="muted">›</span>
+      </button>
     </main>
   )
 }

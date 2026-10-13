@@ -782,32 +782,25 @@ details > summary {
 /* --- home in una schermata --------------------------------------------------------------- */
 
 .home {
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.hero-title {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  text-align: center;
-  margin-top: 4dvh;
-}
-
-.home-emoji {
-  font-size: 2.6rem;
-  animation: bob 2.4s ease-in-out infinite;
-}
-
-@keyframes bob {
-  50% {
-    transform: translateY(-6px) rotate(-4deg);
-  }
-}
-
-.home-actions {
   gap: 12px;
+}
+
+.home .card {
+  padding: 14px;
+  gap: 10px;
+}
+
+.solo-card {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  color: inherit;
+  width: 100%;
+}
+
+.solo-card:active {
+  transform: scale(0.98);
 }
 
 .btn.big {
@@ -1122,11 +1115,7 @@ details > summary {
     padding: 6px 4px;
   }
 
-  .home-emoji {
-    font-size: 2rem;
-  }
-
-  .hero-title {
-    margin-top: 0;
+  .home .logo {
+    font-size: 1.9rem;
   }
 }

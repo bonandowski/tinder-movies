@@ -1119,3 +1119,560 @@ details > summary {
     font-size: 1.9rem;
   }
 }
+
+/* --- hero della home ----------------------------------------------------------------------- */
+
+.brand {
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  font-size: 1.9rem;
+  line-height: 1.1;
+}
+
+.brand span {
+  background: linear-gradient(135deg, var(--like), var(--like-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.headline {
+  font-size: 1.45rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+@media (max-height: 700px) {
+  .headline {
+    font-size: 1.25rem;
+  }
+}
+
+.hl-love {
+  background: linear-gradient(135deg, var(--like), var(--like-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 900;
+}
+
+.hl-film {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: 700;
+  color: #ffc971;
+}
+
+.hl-more {
+  font-weight: 800;
+}
+
+.home s {
+  text-decoration-color: currentColor;
+  text-decoration-thickness: 1.5px;
+  opacity: 0.55;
+}
+
+.hl-right {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: 700;
+  color: #ffc971;
+}
+
+/* --- ritmo e a capo della home ------------------------------------------------------------- */
+
+.home-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.home-hero .brand {
+  margin-bottom: 14px;
+}
+
+.home-hero .headline {
+  text-wrap: balance;
+  margin-bottom: 10px;
+}
+
+.home-hero .subtitle {
+  text-wrap: balance;
+  line-height: 1.45;
+  max-width: 34ch;
+}
+
+/* Le parole evidenziate non si spezzano mai a metà. */
+.hl-love,
+.hl-film,
+.hl-more,
+.hl-right,
+.home s {
+  white-space: nowrap;
+}
+
+.solo-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.solo-text .small {
+  text-wrap: pretty;
+}
+
+@media (max-height: 700px) {
+  .home-hero .brand {
+    margin-bottom: 8px;
+  }
+
+  .home-hero .headline {
+    margin-bottom: 6px;
+  }
+}
+
+/* Telefoni bassi: la home resta in una schermata riducendo un po' tutto, senza tagliare nulla. */
+@media (max-height: 700px) {
+  .home {
+    gap: 8px;
+  }
+
+  .home .card {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .home .input {
+    padding: 10px 14px;
+  }
+
+  .home .btn {
+    padding: 11px 16px;
+  }
+
+  .home .brand {
+    font-size: 1.5rem;
+  }
+
+  .home .headline {
+    font-size: 1.15rem;
+  }
+
+  .home .subtitle {
+    font-size: 0.9rem;
+    line-height: 1.35;
+  }
+}
+
+/* --- home: animazione "come funziona" (ciclo di 6 s) ------------------------------------ */
+
+.demo {
+  --cycle: 6s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  height: 128px;
+  flex: none;
+}
+
+.demo-player {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 54px;
+}
+
+.demo-avatar {
+  font-size: 1.9rem;
+  line-height: 1;
+}
+
+.demo-name {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.demo-react {
+  position: absolute;
+  top: -14px;
+  right: -6px;
+  font-size: 1.15rem;
+  opacity: 0;
+  animation: var(--cycle) infinite;
+}
+
+.r-a1 {
+  animation-name: react-1;
+}
+
+.r-l1 {
+  animation-name: react-1b;
+}
+
+.r-a2 {
+  animation-name: react-2;
+}
+
+.r-l2 {
+  animation-name: react-2b;
+}
+
+@keyframes react-1 {
+  0%, 6% { opacity: 0; transform: scale(0.3) translateY(6px); }
+  10%, 22% { opacity: 1; transform: none; }
+  27%, 100% { opacity: 0; transform: translateY(-8px); }
+}
+
+@keyframes react-1b {
+  0%, 11% { opacity: 0; transform: scale(0.3) translateY(6px); }
+  15%, 22% { opacity: 1; transform: none; }
+  27%, 100% { opacity: 0; transform: translateY(-8px); }
+}
+
+@keyframes react-2 {
+  0%, 36% { opacity: 0; transform: scale(0.3) translateY(6px); }
+  40%, 80% { opacity: 1; transform: none; }
+  86%, 100% { opacity: 0; transform: translateY(-8px); }
+}
+
+@keyframes react-2b {
+  0%, 41% { opacity: 0; transform: scale(0.3) translateY(6px); }
+  45%, 80% { opacity: 1; transform: none; }
+  86%, 100% { opacity: 0; transform: translateY(-8px); }
+}
+
+.demo-phone {
+  position: relative;
+  width: 92px;
+  height: 124px;
+  border-radius: 18px;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.demo-card {
+  position: absolute;
+  inset: 8px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  font-size: 2rem;
+  overflow: hidden;
+  animation: var(--cycle) infinite;
+}
+
+.demo-card.c1 {
+  background: linear-gradient(160deg, #4b5d3a, #1f2a1a);
+  animation-name: card-no;
+}
+
+.demo-card.c2 {
+  background: linear-gradient(160deg, #3a4b8a, #1a1f3d);
+  animation-name: card-match;
+}
+
+.demo-card.c3 {
+  background: linear-gradient(160deg, #8a5a3a, #3d281a);
+  transform: scale(0.92) translateY(4px);
+  filter: brightness(0.6);
+}
+
+@keyframes card-no {
+  0%, 20% { transform: none; opacity: 1; }
+  32%, 94% { transform: translateX(-150%) rotate(-20deg); opacity: 0; }
+  97% { transform: none; opacity: 0; }
+  100% { transform: none; opacity: 1; }
+}
+
+@keyframes card-match {
+  0%, 48% { transform: none; box-shadow: none; }
+  54% { transform: scale(1.1); box-shadow: 0 0 0 3px var(--like), 0 0 24px var(--like); }
+  60%, 84% { transform: scale(1.04); box-shadow: 0 0 0 3px var(--like), 0 0 18px var(--like); }
+  92%, 100% { transform: none; box-shadow: none; }
+}
+
+.demo-stamp {
+  position: absolute;
+  top: 8px;
+  padding: 1px 6px;
+  border: 2px solid;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  font-weight: 900;
+  opacity: 0;
+  animation: var(--cycle) infinite;
+}
+
+.demo-stamp.no {
+  right: 6px;
+  color: var(--like);
+  transform: rotate(12deg);
+  animation-name: stamp-no;
+}
+
+.demo-stamp.yes {
+  left: 6px;
+  color: var(--ok);
+  transform: rotate(-12deg);
+  animation-name: stamp-yes;
+}
+
+@keyframes stamp-no {
+  0%, 18% { opacity: 0; }
+  22%, 30% { opacity: 1; }
+  34%, 100% { opacity: 0; }
+}
+
+@keyframes stamp-yes {
+  0%, 46% { opacity: 0; }
+  50%, 84% { opacity: 1; }
+  90%, 100% { opacity: 0; }
+}
+
+.demo-match {
+  position: absolute;
+  left: 50%;
+  bottom: -12px;
+  white-space: nowrap;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--like), var(--like-2));
+  color: #fff;
+  font-weight: 900;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  opacity: 0;
+  transform: translateX(-50%) scale(0.4);
+  animation: match-pop var(--cycle) infinite;
+}
+
+@keyframes match-pop {
+  0%, 52% { opacity: 0; transform: translateX(-50%) scale(0.4); }
+  58% { opacity: 1; transform: translateX(-50%) scale(1.15); }
+  62%, 84% { opacity: 1; transform: translateX(-50%) scale(1); }
+  90%, 100% { opacity: 0; transform: translateX(-50%) scale(0.8); }
+}
+
+.demo-confetti {
+  position: absolute;
+  inset: -10px;
+  pointer-events: none;
+}
+
+.demo-confetti i {
+  position: absolute;
+  top: 40%;
+  font-style: normal;
+  font-size: 0.9rem;
+  opacity: 0;
+  animation: demo-burst var(--cycle) infinite;
+}
+
+@keyframes demo-burst {
+  0%, 54% { opacity: 0; transform: none; }
+  58% { opacity: 1; }
+  76% { opacity: 0; transform: translateY(-46px) rotate(90deg); }
+  100% { opacity: 0; }
+}
+
+/* Chi ha chiesto meno movimento vede il fotogramma del match, fermo. */
+@media (prefers-reduced-motion: reduce) {
+  .demo *,
+  .demo-card {
+    animation: none !important;
+  }
+
+  .demo-card.c1 {
+    display: none;
+  }
+
+  .demo-match {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
+}
+
+@media (max-height: 700px) {
+  .demo {
+    height: 108px;
+    gap: 14px;
+  }
+
+  .demo-phone {
+    width: 78px;
+    height: 104px;
+  }
+
+  .demo-card {
+    font-size: 1.6rem;
+  }
+}
+
+/* Spazio per l'animazione: tutto un filo più stretto, così la home resta in una schermata. */
+.home {
+  gap: 10px;
+}
+
+.demo {
+  height: 112px;
+}
+
+.demo-phone {
+  width: 84px;
+  height: 108px;
+}
+
+@media (max-height: 700px) {
+  .home {
+    gap: 6px;
+  }
+
+  .home .card {
+    padding: 9px 12px;
+    gap: 7px;
+  }
+
+  .demo {
+    height: 94px;
+  }
+
+  .demo-phone {
+    width: 70px;
+    height: 90px;
+  }
+
+  .demo-avatar {
+    font-size: 1.6rem;
+  }
+
+  .home .divider {
+    font-size: 0.78rem;
+  }
+}
+
+.demo {
+  height: 106px;
+}
+
+/* Telefoni molto bassi: la riga finale cede il posto all'animazione. */
+@media (max-height: 660px) {
+  .home > p.muted.small:last-child {
+    display: none;
+  }
+}
+
+@media (max-height: 700px) {
+  .demo {
+    height: 88px;
+  }
+
+  .demo-phone {
+    width: 66px;
+    height: 84px;
+  }
+}
+
+/* --- home: campo nome con il dado, link, animazione più grande --------------------------- */
+
+.name-field {
+  position: relative;
+}
+
+.name-field .input {
+  padding-right: 52px;
+}
+
+.dice {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 1.3rem;
+  transition: transform 0.2s;
+}
+
+.dice:active {
+  transform: translateY(-50%) rotate(180deg) scale(0.9);
+}
+
+.link-btn {
+  align-self: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 4px;
+}
+
+.home {
+  justify-content: flex-start;
+}
+
+.demo {
+  height: 168px;
+  gap: 22px;
+}
+
+.demo-phone {
+  width: 118px;
+  height: 154px;
+  border-radius: 22px;
+}
+
+.demo-card {
+  font-size: 2.8rem;
+}
+
+.demo-avatar {
+  font-size: 2.4rem;
+}
+
+.demo-name {
+  font-size: 0.8rem;
+}
+
+.demo-react {
+  font-size: 1.4rem;
+}
+
+.demo-stamp {
+  font-size: 0.85rem;
+}
+
+.demo-match {
+  font-size: 0.95rem;
+  bottom: -14px;
+}
+
+@media (max-height: 700px) {
+  .demo {
+    height: 140px;
+  }
+
+  .demo-phone {
+    width: 100px;
+    height: 128px;
+  }
+
+  .demo-card {
+    font-size: 2.3rem;
+  }
+}
+
+/* La home ora può scorrere un po' (il "da solo" sta sotto): niente più riga finale nascosta. */
+@media (max-height: 660px) {
+  .home > p.muted.small:last-child {
+    display: block;
+  }
+}

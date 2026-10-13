@@ -1179,3 +1179,89 @@ details > summary {
   font-weight: 700;
   color: #ffc971;
 }
+
+/* --- ritmo e a capo della home ------------------------------------------------------------- */
+
+.home-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.home-hero .brand {
+  margin-bottom: 14px;
+}
+
+.home-hero .headline {
+  text-wrap: balance;
+  margin-bottom: 10px;
+}
+
+.home-hero .subtitle {
+  text-wrap: balance;
+  line-height: 1.45;
+  max-width: 34ch;
+}
+
+/* Le parole evidenziate non si spezzano mai a metà. */
+.hl-love,
+.hl-film,
+.hl-more,
+.hl-right,
+.home s {
+  white-space: nowrap;
+}
+
+.solo-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.solo-text .small {
+  text-wrap: pretty;
+}
+
+@media (max-height: 700px) {
+  .home-hero .brand {
+    margin-bottom: 8px;
+  }
+
+  .home-hero .headline {
+    margin-bottom: 6px;
+  }
+}
+
+/* Telefoni bassi: la home resta in una schermata riducendo un po' tutto, senza tagliare nulla. */
+@media (max-height: 700px) {
+  .home {
+    gap: 8px;
+  }
+
+  .home .card {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .home .input {
+    padding: 10px 14px;
+  }
+
+  .home .btn {
+    padding: 11px 16px;
+  }
+
+  .home .brand {
+    font-size: 1.5rem;
+  }
+
+  .home .headline {
+    font-size: 1.15rem;
+  }
+
+  .home .subtitle {
+    font-size: 0.9rem;
+    line-height: 1.35;
+  }
+}

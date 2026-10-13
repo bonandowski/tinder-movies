@@ -48,7 +48,7 @@ export default function Home({ flash, navigate }: Props) {
 
   return (
     <main className="app fill center home">
-      <div className="field" style={{ gap: 8 }}>
+      <div className="home-hero">
         <span className="brand">
           🎬 Tinder <span>Movies</span>
         </span>
@@ -56,7 +56,7 @@ export default function Home({ flash, navigate }: Props) {
           Trovare l’<span className="hl-love">amore</span> è difficile. Il <span className="hl-film">film perfetto</span> da vedere in
           compagnia, <span className="hl-more">ancora di più</span>.
         </h1>
-        <p className="muted">
+        <p className="muted subtitle">
           Basta discussioni e scroll infiniti, pochi swipe e <s>l’amore</s> <span className="hl-right">il film giusto</span> è lì che vi aspetta.
         </p>
       </div>
@@ -104,9 +104,9 @@ export default function Home({ flash, navigate }: Props) {
       <div className="divider">da solo</div>
 
       <button className="card solo-card" disabled={busy} onClick={() => create(true)}>
-        <span>
+        <span className="solo-text">
           <strong>🎲 Non sai cosa guardare?</strong>
-          <span className="muted small"> Swipe da solo, poi i film che ti piacciono si sfidano.</span>
+          <span className="muted small">Swipe da solo, poi i film che ti piacciono si sfidano.</span>
         </span>
         <span className="muted">›</span>
       </button>

@@ -1119,3 +1119,30 @@ details > summary {
     font-size: 1.9rem;
   }
 }
+
+/* --- hero della home ----------------------------------------------------------------------- */
+
+.brand {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  font-size: 1.05rem;
+}
+
+.brand span {
+  background: linear-gradient(135deg, var(--like), var(--like-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.headline {
+  font-size: 1.45rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+@media (max-height: 700px) {
+  .headline {
+    font-size: 1.25rem;
+  }
+}

@@ -48,11 +48,14 @@ export default function Home({ flash, navigate }: Props) {
 
   return (
     <main className="app fill center home">
-      <div className="field" style={{ gap: 6 }}>
-        <h1 className="logo">
+      <div className="field" style={{ gap: 8 }}>
+        <span className="brand">
           🎬 Tinder <span>Movies</span>
+        </span>
+        <h1 className="headline">
+          Trovare l’amore è difficile. Il film perfetto da vedere in compagnia, ancora di più.
         </h1>
-        <p className="muted">Swipe a destra se vi va, a sinistra se no: quando tutti dicono sì, è match!</p>
+        <p className="muted">Swipate insieme: quando tutti dite sì è match, e la serata è salva.</p>
       </div>
 
       {(flash || error) && <p className="error">{error ?? flash}</p>}
@@ -104,6 +107,8 @@ export default function Home({ flash, navigate }: Props) {
         </span>
         <span className="muted">›</span>
       </button>
+
+      <p className="muted small">Solo film in streaming in Italia · niente registrazione</p>
     </main>
   )
 }

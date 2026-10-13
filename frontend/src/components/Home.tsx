@@ -3,6 +3,7 @@ import type { Navigate } from '../App'
 import { api } from '../api'
 import { normalizeCode } from '../format'
 import { loadName, saveName, saveToken } from '../session'
+import HowItWorks from './HowItWorks'
 
 interface Props {
   flash: string | null
@@ -52,14 +53,14 @@ export default function Home({ flash, navigate }: Props) {
         <span className="brand">
           🎬 Tinder <span>Movies</span>
         </span>
-        <h1 className="headline">
-          Trovare l’<span className="hl-love">amore</span> è difficile. Il <span className="hl-film">film perfetto</span> da vedere in
-          compagnia, <span className="hl-more">ancora di più</span>.
+        <h1 className="tagline">
+          Trovare l’<span className="hl-love">amore</span> è difficile, il <span className="hl-film">film perfetto</span> da vedere in
+          compagnia <span className="hl-more">ancora di più</span>. Basta discussioni e scroll infiniti: pochi swipe e{' '}
+          <s>l’amore</s> <span className="hl-right">il film giusto</span> è lì che vi aspetta.
         </h1>
-        <p className="muted subtitle">
-          Basta discussioni e scroll infiniti, pochi swipe e <s>l’amore</s> <span className="hl-right">il film giusto</span> è lì che vi aspetta.
-        </p>
       </div>
+
+      <HowItWorks />
 
       {(flash || error) && <p className="error">{error ?? flash}</p>}
 
@@ -77,7 +78,7 @@ export default function Home({ flash, navigate }: Props) {
           />
         </label>
         <button className="btn primary" disabled={busy}>
-          Crea una stanza
+          Crea sessione
         </button>
       </form>
 

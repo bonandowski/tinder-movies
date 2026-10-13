@@ -1163,7 +1163,7 @@ details > summary {
 }
 
 .hl-more {
-  text-decoration: underline wavy var(--like);
+  text-decoration: underline solid var(--like);
   text-decoration-thickness: 2px;
   text-underline-offset: 5px;
 }

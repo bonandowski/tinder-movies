@@ -1676,3 +1676,53 @@ details > summary {
     display: block;
   }
 }
+
+/* --- home che riempie lo schermo: l'animazione prende lo spazio che avanza --------------- */
+
+.home {
+  min-height: 100dvh;
+}
+
+.home .brand {
+  font-size: clamp(1.9rem, 4dvh, 2.4rem);
+}
+
+.home .headline {
+  font-size: clamp(1.45rem, 2.9dvh, 1.8rem);
+}
+
+.home .demo {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 150px;
+  max-height: 340px;
+  gap: clamp(18px, 3dvh, 30px);
+}
+
+.demo-phone {
+  height: clamp(118px, 25dvh, 240px);
+  width: auto;
+  aspect-ratio: 118 / 154;
+  border-radius: clamp(18px, 2.6dvh, 28px);
+}
+
+.demo-card {
+  font-size: clamp(2.2rem, 6.5dvh, 4.4rem);
+  border-radius: clamp(12px, 1.8dvh, 18px);
+}
+
+.demo-avatar {
+  font-size: clamp(2rem, 5dvh, 3.4rem);
+}
+
+.demo-name {
+  font-size: clamp(0.75rem, 1.4dvh, 0.95rem);
+}
+
+.demo-react {
+  font-size: clamp(1.2rem, 2.8dvh, 1.9rem);
+}
+
+.demo-match {
+  font-size: clamp(0.85rem, 1.8dvh, 1.15rem);
+}

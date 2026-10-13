@@ -72,3 +72,24 @@ export function loadVetoes(): number[] {
 }
 
 export const saveVetoes = (genres: number[]) => write(VETOES_KEY, JSON.stringify(genres))
+
+// "Unisciti" dalla home: il nome è già scritto, quindi la pagina della stanza entra senza chiederlo.
+const AUTOJOIN_KEY = 'tm:autojoin'
+
+export function markAutojoin(code: string) {
+  try {
+    sessionStorage.setItem(AUTOJOIN_KEY, code)
+  } catch {
+    /* vedi sopra */
+  }
+}
+
+export function takeAutojoin(code: string): boolean {
+  try {
+    const pending = sessionStorage.getItem(AUTOJOIN_KEY)
+    sessionStorage.removeItem(AUTOJOIN_KEY)
+    return pending === code
+  } catch {
+    return false
+  }
+}

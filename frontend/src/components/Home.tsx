@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react'
 import type { Navigate } from '../App'
 import { api } from '../api'
 import { normalizeCode } from '../format'
-import { loadName, saveName, saveToken } from '../session'
+import { funnyName } from '../names'
+import { loadName, markAutojoin, saveName, saveToken } from '../session'
 import HowItWorks from './HowItWorks'
 
 interface Props {
@@ -10,12 +11,21 @@ interface Props {
   navigate: Navigate
 }
 
-/** Tutto in una schermata: nome, poi una delle tre strade (crea, entra con codice, da solo). */
 export default function Home({ flash, navigate }: Props) {
   const [name, setName] = useState(loadName)
+  const [joining, setJoining] = useState(false)
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Nessun nome? Ne inventiamo uno buffo, e lo si vede nel campo.
+  function nameOrFunny(): string {
+    const clean = name.trim()
+    if (clean) return clean
+    const generated = funnyName()
+    setName(generated)
+    return generated
+  }
 
   async function run(action: () => Promise<void>) {
     setBusy(true)
@@ -30,9 +40,9 @@ export default function Home({ flash, navigate }: Props) {
 
   const create = (solo: boolean) =>
     run(async () => {
-      if (!solo && !name.trim()) throw new Error('Scrivi il tuo nome per creare la stanza')
-      const room = await api.createRoom(name.trim() || 'Io', solo)
-      if (name.trim()) saveName(room.name)
+      const chosen = solo ? name.trim() || 'Io' : nameOrFunny()
+      const room = await api.createRoom(chosen, solo)
+      if (!solo || name.trim()) saveName(room.name)
       saveToken(room.code, room.token)
       navigate(`/r/${room.code}`)
     })
@@ -42,65 +52,66 @@ export default function Home({ flash, navigate }: Props) {
     if (code.length < 4) return setError('Il codice ha 4 caratteri')
     void run(async () => {
       const info = await api.roomInfo(code)
-      if (name.trim()) saveName(name.trim())
+      saveName(nameOrFunny())
+      markAutojoin(info.code)
       navigate(`/r/${info.code}`)
     })
   }
 
   return (
-    <main className="app fill center home">
+    <main className="app home">
       <div className="home-hero">
         <span className="brand">
           🎬 Tinder <span>Movies</span>
         </span>
-        <h1 className="tagline">
-          Trovare l’<span className="hl-love">amore</span> è difficile, il <span className="hl-film">film perfetto</span> da vedere in
-          compagnia <span className="hl-more">ancora di più</span>. Basta discussioni e scroll infiniti: pochi swipe e{' '}
-          <s>l’amore</s> <span className="hl-right">il film giusto</span> è lì che vi aspetta.
+        <h1 className="headline">
+          Trovare l’<span className="hl-love">amore</span> è difficile. Il <span className="hl-film">film perfetto</span> da vedere in
+          compagnia, <span className="hl-more">ancora di più</span>.
         </h1>
+        <p className="muted subtitle">
+          Basta discussioni e scroll infiniti, pochi swipe e <s>l’amore</s> <span className="hl-right">il film giusto</span> è lì che vi
+          aspetta.
+        </p>
       </div>
 
       <HowItWorks />
 
       {(flash || error) && <p className="error">{error ?? flash}</p>}
 
-      <form className="card" onSubmit={(e) => (e.preventDefault(), create(false))}>
-        <label className="field">
-          <span className="label">Il tuo nome</span>
-          <input
-            className="input"
-            value={name}
-            maxLength={20}
-            autoComplete="nickname"
-            placeholder="Come ti chiami?"
-            aria-label="Il tuo nome"
-            onChange={(e) => setName(e.target.value)}
-          />
-        </label>
-        <button className="btn primary" disabled={busy}>
-          Crea sessione
-        </button>
-      </form>
-
-      <div className="divider">oppure</div>
-
-      <form className="card" onSubmit={join}>
-        <span className="label">Hai già un codice?</span>
-        <div className="row">
-          <input
-            className="input code grow"
-            value={code}
-            autoCapitalize="characters"
-            autoComplete="off"
-            placeholder="ABCD"
-            aria-label="Codice stanza"
-            onChange={(e) => setCode(normalizeCode(e.target.value))}
-          />
-          <button className="btn" disabled={busy || code.length < 4}>
-            Entra
-          </button>
-        </div>
-      </form>
+      <section className="card">
+        <NameField name={name} onChange={setName} />
+        {joining ? (
+          <form className="field" style={{ gap: 8 }} onSubmit={join}>
+            <div className="row">
+              <input
+                className="input code grow"
+                value={code}
+                autoFocus
+                autoCapitalize="characters"
+                autoComplete="off"
+                placeholder="CODICE"
+                aria-label="Codice sessione"
+                onChange={(e) => setCode(normalizeCode(e.target.value))}
+              />
+              <button className="btn primary" disabled={busy || code.length < 4}>
+                Entra
+              </button>
+            </div>
+            <button type="button" className="link-btn" onClick={() => setJoining(false)}>
+              ‹ Voglio creare una sessione
+            </button>
+          </form>
+        ) : (
+          <div className="row">
+            <button className="btn primary grow" disabled={busy} onClick={() => create(false)}>
+              Crea sessione
+            </button>
+            <button className="btn" disabled={busy} onClick={() => setJoining(true)}>
+              Unisciti
+            </button>
+          </div>
+        )}
+      </section>
 
       <div className="divider">da solo</div>
 
@@ -112,7 +123,28 @@ export default function Home({ flash, navigate }: Props) {
         <span className="muted">›</span>
       </button>
 
-      <p className="muted small">Solo film in streaming in Italia · niente registrazione</p>
+      <p className="muted small center-text">Solo film in streaming in Italia · niente registrazione</p>
     </main>
+  )
+}
+
+/** "Come ti chiami?" con il dado che propone un nome buffo. */
+export function NameField({ name, onChange, autoFocus = false }: { name: string; onChange: (name: string) => void; autoFocus?: boolean }) {
+  return (
+    <div className="name-field">
+      <input
+        className="input"
+        value={name}
+        maxLength={20}
+        autoFocus={autoFocus}
+        autoComplete="nickname"
+        placeholder="Come ti chiami?"
+        aria-label="Il tuo nome"
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <button type="button" className="dice" aria-label="Nome a caso" title="Nome a caso" onClick={() => onChange(funnyName(Math.random, name))}>
+        🎲
+      </button>
+    </div>
   )
 }

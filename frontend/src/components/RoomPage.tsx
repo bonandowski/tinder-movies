@@ -1,7 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import type { Navigate } from '../App'
 import { api } from '../api'
-import { loadName, loadToken, saveName } from '../session'
+import { funnyName } from '../names'
+import { loadName, loadToken, saveName, takeAutojoin } from '../session'
+import { NameField } from './Home'
+import HowItWorks from './HowItWorks'
 import type { RoomInfo } from '../types'
 import RoomScreen from './RoomScreen'
 
@@ -12,7 +15,8 @@ interface Props {
 
 /** Chi ha già un token rientra subito; gli altri passano da "come ti chiami?". */
 export default function RoomPage({ code, navigate }: Props) {
-  const [name, setName] = useState<string | null>(() => (loadToken(code) ? loadName() : null))
+  // Rientro (token) o "Unisciti" dalla home (nome già scelto): si entra subito.
+  const [name, setName] = useState<string | null>(() => (loadToken(code) || takeAutojoin(code) ? loadName() || funnyName() : null))
   if (name === null) return <JoinGate code={code} navigate={navigate} onJoin={setName} />
   return <RoomScreen code={code} name={name} navigate={navigate} />
 }
@@ -26,7 +30,7 @@ function JoinGate({
 }) {
   const [info, setInfo] = useState<RoomInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [name, setName] = useState(loadName)
+  const [name, setName] = useState(() => loadName() || funnyName())
 
   useEffect(() => {
     api.roomInfo(code).then(setInfo, (e: Error) => setError(e.message))
@@ -49,42 +53,36 @@ function JoinGate({
         : null)
 
   return (
-    <main className="app center">
-      <h1 className="logo">
-        Stanza <span>{code}</span>
-      </h1>
+    <main className="app home">
+      <div className="home-hero">
+        <span className="brand">
+          🎬 Tinder <span>Movies</span>
+        </span>
+        <h1 className="headline">
+          Ti hanno invitato a scegliere il <span className="hl-film">film di stasera</span> 🍿
+        </h1>
+        <p className="muted subtitle">Sessione {code}: entra, swipe, e quando dite tutti sì è match.</p>
+      </div>
+      <HowItWorks />
       {blocked ? (
-        <>
+        <section className="card">
           <p className="error">{blocked}</p>
           <button className="btn" onClick={() => navigate('/')}>
             Torna alla home
           </button>
-        </>
-      ) : !info ? (
-        <p className="muted">
-          <span className="spinner" /> Cerco la stanza…
-        </p>
+        </section>
       ) : (
         <form className="card" onSubmit={submit}>
-          <p className="muted">
-            {info.players === 1 ? '1 giocatore ti aspetta' : `${info.players} giocatori ti aspettano`}
-          </p>
-          <label className="field">
-            <span className="label">Il tuo nome</span>
-            <input
-              className="input"
-              value={name}
-              maxLength={20}
-              autoFocus
-              autoComplete="nickname"
-              placeholder="Come ti chiami?"
-              onChange={(e) => setName(e.target.value)}
-            />
-          </label>
-          <button className="btn primary" disabled={!name.trim()}>
-            Entra
+          {info && (
+            <p className="muted small">
+              {info.players === 1 ? 'C’è già 1 persona che ti aspetta' : `Ci sono già ${info.players} persone che ti aspettano`}
+            </p>
+          )}
+          <NameField name={name} onChange={setName} autoFocus />
+          <button className="btn primary" disabled={!name.trim() || !info}>
+            {info ? 'Entra' : 'Cerco la sessione…'}
           </button>
-          <button type="button" className="btn ghost" onClick={() => navigate('/')}>
+          <button type="button" className="link-btn" onClick={() => navigate('/')}>
             Annulla
           </button>
         </form>

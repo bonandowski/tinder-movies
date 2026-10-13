@@ -1266,28 +1266,6 @@ details > summary {
   }
 }
 
-/* --- home: testo unico ------------------------------------------------------------------- */
-
-.tagline {
-  font-size: 1.12rem;
-  line-height: 1.4;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  text-wrap: balance;
-  color: #dfe3ec;
-}
-
-.tagline s {
-  font-weight: 500;
-}
-
-@media (max-height: 700px) {
-  .home .tagline {
-    font-size: 0.98rem;
-    line-height: 1.35;
-  }
-}
-
 /* --- home: animazione "come funziona" (ciclo di 6 s) ------------------------------------ */
 
 .demo {
@@ -1597,5 +1575,104 @@ details > summary {
   .demo-phone {
     width: 66px;
     height: 84px;
+  }
+}
+
+/* --- home: campo nome con il dado, link, animazione più grande --------------------------- */
+
+.name-field {
+  position: relative;
+}
+
+.name-field .input {
+  padding-right: 52px;
+}
+
+.dice {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 1.3rem;
+  transition: transform 0.2s;
+}
+
+.dice:active {
+  transform: translateY(-50%) rotate(180deg) scale(0.9);
+}
+
+.link-btn {
+  align-self: center;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 4px;
+}
+
+.home {
+  justify-content: flex-start;
+}
+
+.demo {
+  height: 168px;
+  gap: 22px;
+}
+
+.demo-phone {
+  width: 118px;
+  height: 154px;
+  border-radius: 22px;
+}
+
+.demo-card {
+  font-size: 2.8rem;
+}
+
+.demo-avatar {
+  font-size: 2.4rem;
+}
+
+.demo-name {
+  font-size: 0.8rem;
+}
+
+.demo-react {
+  font-size: 1.4rem;
+}
+
+.demo-stamp {
+  font-size: 0.85rem;
+}
+
+.demo-match {
+  font-size: 0.95rem;
+  bottom: -14px;
+}
+
+@media (max-height: 700px) {
+  .demo {
+    height: 140px;
+  }
+
+  .demo-phone {
+    width: 100px;
+    height: 128px;
+  }
+
+  .demo-card {
+    font-size: 2.3rem;
+  }
+}
+
+/* La home ora può scorrere un po' (il "da solo" sta sotto): niente più riga finale nascosta. */
+@media (max-height: 660px) {
+  .home > p.muted.small:last-child {
+    display: block;
   }
 }

@@ -1146,3 +1146,29 @@ details > summary {
     font-size: 1.25rem;
   }
 }
+
+.hl-love {
+  background: linear-gradient(135deg, var(--like), var(--like-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 900;
+}
+
+.hl-film {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-weight: 700;
+  color: #ffc971;
+}
+
+.hl-more {
+  text-decoration: underline wavy var(--like);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 5px;
+}
+
+.home s {
+  text-decoration-color: var(--like);
+  text-decoration-thickness: 2px;
+}

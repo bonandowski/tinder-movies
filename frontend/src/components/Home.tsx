@@ -53,9 +53,12 @@ export default function Home({ flash, navigate }: Props) {
           🎬 Tinder <span>Movies</span>
         </span>
         <h1 className="headline">
-          Trovare l’amore è difficile. Il film perfetto da vedere in compagnia, ancora di più.
+          Trovare l’<span className="hl-love">amore</span> è difficile. Il <span className="hl-film">film perfetto</span> da vedere in
+          compagnia, <span className="hl-more">ancora di più</span>.
         </h1>
-        <p className="muted">Swipate insieme: quando tutti dite sì è match, e la serata è salva.</p>
+        <p className="muted">
+          Basta discussioni e scroll infiniti, pochi swipe e <s>l’amore</s> il film giusto è lì che vi aspetta.
+        </p>
       </div>
 
       {(flash || error) && <p className="error">{error ?? flash}</p>}

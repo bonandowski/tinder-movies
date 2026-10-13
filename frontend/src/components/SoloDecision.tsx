@@ -3,6 +3,7 @@ import { challenger, choose, decideAtRandom, isDecided, progress, shuffled, star
 import { movieFacts } from '../format'
 import { movieById } from '../roomReducer'
 import type { Movie } from '../types'
+import { share } from '../share'
 import type { RoomApi } from '../useRoom'
 import MovieSheet from './MovieSheet'
 
@@ -57,6 +58,9 @@ export default function SoloDecision({ room, onLeave }: Props) {
             </div>
           </div>
         </div>
+        <button className="btn" onClick={() => void share(`🍿 Stasera guardo «${winner.title}»: scelto con Tinder Movies`, location.origin)}>
+          📲 Condividi
+        </button>
         {liked.length > 1 && (
           <button className="btn ghost" onClick={() => setDuel(startDuel(shuffled(liked)))}>
             Rifai la sfida

@@ -85,15 +85,15 @@ Senza `frontend/dist` il backend parte lo stesso, solo senza interfaccia.
 
 1. Uno crea la stanza (nome + "Crea una stanza") e ottiene un codice di 4 caratteri e un link.
 2. Gli altri entrano dal link, oppure dalla home con il codice. Si entra solo finché si è in lobby.
-3. Chi ha creato la stanza (host) sceglie i filtri e preme **Inizia**: servono almeno 2 giocatori
-   collegati. Chi non è collegato in quel momento resta fuori dalla partita.
-   - In vista: piattaforme, generi, quanti film.
-   - In **Altri filtri**: tipo di pila (Popolari, Più votati, Usciti da poco, Perle nascoste), voto
-     minimo, anni (decenni), lingua originale, temi (Natale, Storia vera, Supereroi…), durata, film
-     già visti.
-   - Ognuno, host compreso, può mettere dei **veti** su dei generi: basta il veto di uno per
-     toglierli dalla pila di tutti. I veti sono visibili a tutti e restano salvati nel browser per le
-     stanze successive.
+3. La preparazione è un **wizard**, una schermata per passo, senza scorrere, con "Passo X di N":
+   - l'host: Chiama gli amici → Piattaforme → Generi → Che serata (Popolari, Più votati, Usciti
+     da poco, Perle nascoste + voto minimo) → Epoca e durata → Lingua originale → Temi → Già visti e
+     quanti film → Riepilogo (ogni riga riporta al suo passo) → **Inizia** (servono almeno 2
+     giocatori collegati; chi non è collegato in quel momento resta fuori);
+   - nei generi un tocco è 👍 (lo voglio), due 👎 (veto: basta il veto di uno per toglierlo a
+     tutti), tre di nuovo neutro; i veti restano salvati nel browser per le stanze successive;
+   - gli ospiti fanno solo i passi personali (generi che non vogliono, film già visti) e poi
+     vedono in diretta le scelte dell'host.
 4. Tutti vedono la stessa pila di film e votano al proprio ritmo: trascina a destra (sì) o a
    sinistra (no), usa i pulsanti o le frecce della tastiera. Un tocco sulla locandina apre la scheda.
 5. Quando **tutti** i giocatori hanno detto sì allo stesso film compare **Match!** a tutti.
@@ -109,7 +109,7 @@ del tipo di pila scelto, tenendone l'ordine (quindi i più popolari, o più vota
 
 ### Da solo
 
-Dalla home, **Scegli da solo**: stessa lobby (senza codice né giocatori), stessi filtri, veti e
+Dalla home, **Scegli da solo**: stesso wizard (senza il passo dell'invito), stessi filtri, veti e
 film già visti. Si swipe la pila; dal cuore in alto si può fermare quando si vuole ("Basta così").
 Alla fine i film a cui hai detto sì si sfidano a coppie (chi vince resta e affronta il successivo)
 finché ne resta uno: **"Stasera guardi…"**. C'è anche "Non so decidere: scegli tu", che pesca a

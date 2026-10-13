@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { movieById, nextIndex } from '../roomReducer'
 import type { Movie } from '../types'
+import { buzz } from '../share'
 import type { RoomApi } from '../useRoom'
 import MatchOverlay from './MatchOverlay'
 import MovieRow from './MovieRow'
@@ -154,7 +155,7 @@ export default function Swipe({ room, onLeave }: Props) {
           ref={cardRef}
           movie={movie}
           active={!blocked}
-          onSwipe={(like) => room.swipe(movie.id, like)}
+          onSwipe={(like) => (buzz(like ? 15 : 8), room.swipe(movie.id, like))}
           onInfo={() => setInfo(movie)}
         />
       </div>

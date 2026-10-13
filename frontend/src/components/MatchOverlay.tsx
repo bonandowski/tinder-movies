@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { movieFacts } from '../format'
+import { buzz } from '../share'
 import type { Movie } from '../types'
 
 interface Props {
@@ -8,9 +10,19 @@ interface Props {
   onContinue: () => void
 }
 
+const CONFETTI = ['🎉', '🍿', '✨', '❤️', '🎬', '⭐', '🎊', '💥']
+
 export default function MatchOverlay({ movie, more, onContinue }: Props) {
+  useEffect(() => buzz([60, 40, 120]), [movie.id])
   return (
     <div className="overlay middle" role="dialog" aria-label="Match!">
+      <div className="confetti" aria-hidden>
+        {Array.from({ length: 18 }, (_, i) => (
+          <span key={`${movie.id}-${i}`} style={{ left: `${(i * 37) % 100}%`, animationDelay: `${(i % 6) * 0.08}s` }}>
+            {CONFETTI[i % CONFETTI.length]}
+          </span>
+        ))}
+      </div>
       <div className="match-box">
         <div className="match-title">Match!</div>
         <p className="muted">Tutti volete vedere</p>

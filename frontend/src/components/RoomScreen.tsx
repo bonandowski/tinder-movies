@@ -1,6 +1,6 @@
 import type { Navigate } from '../App'
 import { useRoom } from '../useRoom'
-import Lobby from './Lobby'
+import Setup from './Setup'
 import Results from './Results'
 import Swipe from './Swipe'
 
@@ -38,7 +38,7 @@ export default function RoomScreen({ code, name, navigate }: Props) {
       ) : state.phase === 'finished' ? (
         <Results room={room} onLeave={leave} />
       ) : (
-        <Lobby room={room} onLeave={leave} />
+        <Setup room={room} onLeave={leave} />
       )}
       {notice && (
         <div className="toast" role="alert" onClick={room.clearNotice}>

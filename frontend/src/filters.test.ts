@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { challenger, choose, decideAtRandom, isDecided, progress, shuffled, startDuel } from './duel'
-import { activeAdvancedCount, groupVetoes, toggle, yearRangeLabel } from './filters'
+import { describeSettings, groupVetoes, nextGenreState, setupSteps, toggle, yearRangeLabel } from './filters'
 import type { PlayerInfo, RoomSettings } from './types'
 
 const base: RoomSettings = {
@@ -19,14 +19,6 @@ const base: RoomSettings = {
 }
 
 describe('filters', () => {
-  it('counts only the advanced filters that differ from the default', () => {
-    expect(activeAdvancedCount(base)).toBe(0)
-    expect(activeAdvancedCount({ ...base, platforms: [8], genres: [35], limit: 10 })).toBe(0) // filtri base
-    expect(
-      activeAdvancedCount({ ...base, kind: 'top_rated', min_rating: 7, year_min: 1990, languages: ['it'], themes: [1], exclude_seen: false }),
-    ).toBe(6)
-  })
-
   it('names year ranges', () => {
     expect(yearRangeLabel({ year_min: 1990, year_max: 1999 })).toBe('Anni ’90')
     expect(yearRangeLabel({ year_min: null, year_max: null })).toBe('Qualsiasi')
@@ -95,5 +87,34 @@ describe('duel', () => {
     const items = [1, 2, 3, 4, 5]
     expect(shuffled(items, () => 0).sort()).toEqual(items)
     expect(items).toEqual([1, 2, 3, 4, 5]) // l'originale non cambia
+  })
+})
+
+describe('setup wizard', () => {
+  it('gives the host every step, the guest only the personal ones', () => {
+    expect(setupSteps(true, false)).toEqual(['invite', 'platforms', 'genres', 'mood', 'era', 'language', 'themes', 'seen', 'summary'])
+    expect(setupSteps(true, true)[0]).toBe('platforms') // da solo non si invita nessuno
+    expect(setupSteps(false, false)).toEqual(['genres', 'seen', 'wait'])
+  })
+
+  it('cycles genres: the host says yes/no, a guest only no', () => {
+    expect(['none', 'yes', 'no'].map((s) => nextGenreState(s as 'none', true))).toEqual(['yes', 'no', 'none'])
+    expect(nextGenreState('none', false)).toBe('no')
+    expect(nextGenreState('no', false)).toBe('none')
+  })
+
+  it('describes the choices in short', () => {
+    const catalog = { genres: [{ id: 35, name: 'Commedia' }], providers: [{ id: 8, name: 'Netflix', logo_url: null }], themes: [] }
+    const rows = describeSettings({ ...base, platforms: [8], genres: [35], kind: 'hidden_gems', min_rating: 7.5, year_min: 1990, year_max: 1999, languages: ['it', 'fr'], limit: 20 }, catalog)
+    const value = Object.fromEntries(rows.map((r) => [r.label, r.value]))
+    expect(value).toMatchObject({
+      Piattaforme: 'Netflix',
+      Generi: 'Commedia',
+      Serata: '💎 Perle nascoste · voto 7,5+',
+      Epoca: 'Anni ’90',
+      Lingua: '🇮🇹 🇫🇷',
+      Temi: 'qualsiasi',
+      Pila: '20 film · senza i già visti',
+    })
   })
 })

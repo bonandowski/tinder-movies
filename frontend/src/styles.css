@@ -778,3 +778,355 @@ details > summary {
   object-fit: cover;
   display: block;
 }
+
+/* --- home in una schermata --------------------------------------------------------------- */
+
+.home {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.hero-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  margin-top: 4dvh;
+}
+
+.home-emoji {
+  font-size: 2.6rem;
+  animation: bob 2.4s ease-in-out infinite;
+}
+
+@keyframes bob {
+  50% {
+    transform: translateY(-6px) rotate(-4deg);
+  }
+}
+
+.home-actions {
+  gap: 12px;
+}
+
+.btn.big {
+  padding: 16px 18px;
+  font-size: 1.05rem;
+}
+
+.center-text {
+  text-align: center;
+}
+
+/* --- wizard di preparazione -------------------------------------------------------------- */
+
+.setup {
+  gap: 10px;
+}
+
+.setup-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.icon-btn {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.icon-btn:disabled {
+  opacity: 0.3;
+}
+
+.steps-bar {
+  display: flex;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.steps-bar > button {
+  flex: 1;
+  height: 5px;
+  padding: 0;
+  border: 0;
+  border-radius: 3px;
+  background: var(--surface-2);
+  transition: background 0.3s;
+}
+
+.steps-bar > button.on {
+  background: linear-gradient(90deg, var(--like), var(--like-2));
+}
+
+.step {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: step-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.step.back {
+  animation-name: step-in-back;
+}
+
+@keyframes step-in {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+}
+
+@keyframes step-in-back {
+  from {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+}
+
+.step-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.step-title h1 {
+  font-size: 1.6rem;
+  letter-spacing: -0.01em;
+}
+
+.step-emoji {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.step-hint {
+  margin-top: -4px;
+}
+
+.step-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.setup-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chips.compact {
+  gap: 6px;
+}
+
+.chips.compact .chip {
+  padding: 6px 11px;
+  font-size: 0.86rem;
+}
+
+.chip.yes {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #0f1117;
+}
+
+.chip.no {
+  background: var(--like);
+  border-color: var(--like);
+  color: #fff;
+}
+
+.chip {
+  transition: transform 0.1s, background 0.15s;
+}
+
+.chip:active {
+  transform: scale(0.94);
+}
+
+.kind-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.kind {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  text-align: left;
+  transition: transform 0.1s, border-color 0.15s;
+}
+
+.kind:active {
+  transform: scale(0.97);
+}
+
+.kind[aria-pressed='true'] {
+  border-color: var(--like);
+  background: rgba(255, 77, 109, 0.12);
+}
+
+.kind-emoji {
+  font-size: 1.5rem;
+}
+
+.invite {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: center;
+  padding: 16px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.player-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 0.88rem;
+  animation: pop 0.3s ease-out;
+}
+
+.player-chip.off {
+  opacity: 0.5;
+}
+
+.chip-x {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 0 0 0 4px;
+}
+
+.summary {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.summary-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  text-align: left;
+}
+
+.summary-row:last-child {
+  border-bottom: 0;
+}
+
+.summary-row .label {
+  width: 96px;
+  flex: none;
+  font-size: 0.7rem;
+}
+
+.summary-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.switch {
+  gap: 8px;
+}
+
+.switch input {
+  accent-color: var(--like);
+  width: 18px;
+  height: 18px;
+}
+
+.loading-reel {
+  font-size: 3rem;
+  animation: spin 1.6s linear infinite;
+}
+
+/* --- coriandoli del match ---------------------------------------------------------------- */
+
+.confetti {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.confetti span {
+  position: absolute;
+  top: -40px;
+  font-size: 1.6rem;
+  animation: fall 1.6s ease-in forwards;
+}
+
+@keyframes fall {
+  to {
+    transform: translateY(110dvh) rotate(540deg);
+    opacity: 0.2;
+  }
+}
+
+/* Schermi bassi (telefoni piccoli): tutto un po' più compatto per stare in una schermata. */
+@media (max-height: 700px) {
+  .app {
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .step-title h1 {
+    font-size: 1.35rem;
+  }
+
+  .step-emoji {
+    font-size: 1.5rem;
+  }
+
+  .provider img {
+    width: 30px;
+    height: 30px;
+  }
+
+  .provider {
+    padding: 6px 4px;
+  }
+
+  .home-emoji {
+    font-size: 2rem;
+  }
+
+  .hero-title {
+    margin-top: 0;
+  }
+}

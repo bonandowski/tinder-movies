@@ -3,6 +3,7 @@ import { movieById } from '../roomReducer'
 import type { Movie, Result } from '../types'
 import type { RoomApi } from '../useRoom'
 import MovieRow from './MovieRow'
+import { share } from '../share'
 import MovieSheet from './MovieSheet'
 import SoloDecision from './SoloDecision'
 
@@ -95,6 +96,21 @@ function GroupResults({ room, onLeave }: Props) {
       )}
 
       <div className="field footer">
+        {top && (
+          <button
+            className="btn"
+            onClick={() =>
+              void share(
+                matches.length
+                  ? `🍿 Stasera guardiamo «${top.movie.title}»! Scelto in ${everyone} con Tinder Movies`
+                  : `🍿 Nessun match, ma «${top.movie.title}» è il meno peggio: si guarda quello! (Tinder Movies)`,
+                location.origin,
+              )
+            }
+          >
+            📲 Condividi il risultato
+          </button>
+        )}
         {isHost ? (
           <button className="btn primary" onClick={room.reset}>
             Nuova partita

@@ -3,6 +3,7 @@ import type { Navigate } from '../App'
 import { api } from '../api'
 import { normalizeCode } from '../format'
 import { funnyName } from '../names'
+import { track } from '../analytics'
 import { loadName, markAutojoin, saveName, saveToken } from '../session'
 import HowItWorks from './HowItWorks'
 
@@ -44,6 +45,7 @@ export default function Home({ flash, navigate }: Props) {
       const room = await api.createRoom(chosen, solo)
       if (!solo || name.trim()) saveName(room.name)
       saveToken(room.code, room.token)
+      track(solo ? 'sessione-da-solo' : 'sessione-creata')
       navigate(`/r/${room.code}`)
     })
 
@@ -54,6 +56,7 @@ export default function Home({ flash, navigate }: Props) {
       const info = await api.roomInfo(code)
       saveName(nameOrFunny())
       markAutojoin(info.code)
+      track('entra-con-codice')
       navigate(`/r/${info.code}`)
     })
   }

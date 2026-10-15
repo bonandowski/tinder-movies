@@ -14,6 +14,7 @@ import {
   YEAR_RANGES,
   type SetupStep,
 } from '../filters'
+import { track } from '../analytics'
 import { loadVetoes, saveVetoes } from '../session'
 import { buzz, share } from '../share'
 import type { RoomSettings } from '../types'
@@ -317,7 +318,7 @@ export default function Setup({ room, onLeave }: Props) {
         {step !== 'invite' && <LiveCount count={count} limit={(isHost ? settings : state.settings).limit} />}
         {step === 'summary' ? (
           <>
-            <button className="btn primary big" disabled={!canStart || noFilms} onClick={() => (buzz(20), room.start())}>
+            <button className="btn primary big" disabled={!canStart || noFilms} onClick={() => (buzz(20), track('partita-avviata'), room.start())}>
               🎬 Inizia a swipare
             </button>
             {!canStart && <p className="muted small center-text">Serve almeno un altro giocatore: torna a "Chiama gli amici".</p>}

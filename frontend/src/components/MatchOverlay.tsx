@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { track } from '../analytics'
 import { movieFacts } from '../format'
 import { buzz } from '../share'
 import type { Movie } from '../types'
@@ -13,7 +14,10 @@ interface Props {
 const CONFETTI = ['🎉', '🍿', '✨', '❤️', '🎬', '⭐', '🎊', '💥']
 
 export default function MatchOverlay({ movie, more, onContinue }: Props) {
-  useEffect(() => buzz([60, 40, 120]), [movie.id])
+  useEffect(() => {
+    buzz([60, 40, 120])
+    track('match')
+  }, [movie.id])
   return (
     <div className="overlay middle" role="dialog" aria-label="Match!">
       <div className="confetti" aria-hidden>

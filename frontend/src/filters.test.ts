@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { challenger, choose, decideAtRandom, isDecided, progress, shuffled, startDuel } from './duel'
-import { describeSettings, groupVetoes, nextGenreState, setupSteps, toggle, yearRangeLabel } from './filters'
+import { describeSettings, effectiveFilters, groupVetoes, nextGenreState, ratingLabel, setupSteps, toggle, yearRangeLabel } from './filters'
 import type { PlayerInfo, RoomSettings } from './types'
 
 const base: RoomSettings = {
@@ -10,8 +10,10 @@ const base: RoomSettings = {
   exclude_genres: [],
   year_min: null,
   year_max: null,
+  year_ranges: [],
   max_runtime: null,
   min_rating: null,
+  max_rating: null,
   languages: [],
   themes: [],
   limit: 30,
@@ -20,9 +22,24 @@ const base: RoomSettings = {
 
 describe('filters', () => {
   it('names year ranges', () => {
-    expect(yearRangeLabel({ year_min: 1990, year_max: 1999 })).toBe('Anni ’90')
-    expect(yearRangeLabel({ year_min: null, year_max: null })).toBe('Qualsiasi')
-    expect(yearRangeLabel({ year_min: 1995, year_max: null })).toBe('1995–oggi')
+    const none = { year_min: null, year_max: null, year_ranges: [] }
+    expect(yearRangeLabel({ ...none, year_ranges: ['2010-2019', '1990-1999'] })).toBe('Anni ’90, Anni 2010')
+    expect(yearRangeLabel({ ...none, year_ranges: ['1995-2004'] })).toBe('1995–2004')
+    expect(yearRangeLabel(none)).toBe('Qualsiasi')
+    expect(yearRangeLabel({ ...none, year_min: 1995 })).toBe('1995–oggi')
+  })
+
+  it('names ratings, low ones too', () => {
+    expect(ratingLabel({ min_rating: null, max_rating: null })).toBe('')
+    expect(ratingLabel({ min_rating: 7.5, max_rating: null })).toBe('voto 7,5+')
+    expect(ratingLabel({ min_rating: null, max_rating: 5 })).toBe('💩 voto fino a 5')
+  })
+
+  it('applies everyone’s vetoes to the filters it counts', () => {
+    const filters = effectiveFilters({ ...base, genres: [35, 27], exclude_genres: [99] }, [27, 18])
+    expect(filters).toMatchObject({ genres: [35], exclude_genres: [18, 27, 99] })
+    expect(filters).not.toHaveProperty('limit')
+    expect(effectiveFilters({ ...base, genres: [27] }, [27])).toBeNull()
   })
 
   it('toggles items in a list', () => {
@@ -105,7 +122,7 @@ describe('setup wizard', () => {
 
   it('describes the choices in short', () => {
     const catalog = { genres: [{ id: 35, name: 'Commedia' }], providers: [{ id: 8, name: 'Netflix', logo_url: null }], themes: [] }
-    const rows = describeSettings({ ...base, platforms: [8], genres: [35], kind: 'hidden_gems', min_rating: 7.5, year_min: 1990, year_max: 1999, languages: ['it', 'fr'], limit: 20 }, catalog)
+    const rows = describeSettings({ ...base, platforms: [8], genres: [35], kind: 'hidden_gems', min_rating: 7.5, year_ranges: ['1990-1999'], languages: ['it', 'fr'], limit: 20 }, catalog)
     const value = Object.fromEntries(rows.map((r) => [r.label, r.value]))
     expect(value).toMatchObject({
       Piattaforme: 'Netflix',

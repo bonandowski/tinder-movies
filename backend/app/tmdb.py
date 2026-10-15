@@ -1,6 +1,7 @@
 """Client asincrono per l'API TMDB (paese IT, lingua it-IT)."""
 
 import asyncio
+import itertools
 import logging
 import math
 import random
@@ -14,7 +15,7 @@ from typing import Any
 
 import httpx
 
-from app.models import FilmRef, Genre, Movie, MovieFilters, Provider, StackKind
+from app.models import FilmRef, Genre, Movie, MovieFilters, Provider, StackKind, YearSpan
 
 log = logging.getLogger(__name__)
 
@@ -49,6 +50,8 @@ MAX_CONCURRENCY = 10  # richieste TMDB in parallelo
 
 CATALOG_TTL = 24 * 3600  # generi e provider cambiano di rado
 DETAILS_TTL = 6 * 3600
+COUNT_TTL = 3600  # il conteggio dal vivo dei filtri: approssimato, può essere un po' vecchio
+COUNT_CACHE_MAX = 5000
 
 MATCH_TTL = 30 * 24 * 3600  # "questo titolo + anno è quel film" non cambia
 MATCH_CACHE_MAX = 50_000
@@ -149,10 +152,18 @@ def _logo_url(path: str | None) -> str | None:
 
 
 def build_discover_params(
-    filters: MovieFilters, page: int = 1, today: date | None = None
+    filters: MovieFilters,
+    page: int = 1,
+    today: date | None = None,
+    years: YearSpan | None = None,
 ) -> dict[str, Any]:
-    """Traduce i nostri filtri nei parametri di /discover/movie."""
+    """Traduce i nostri filtri nei parametri di /discover/movie.
+
+    TMDB accetta un solo intervallo di date: con più intervalli (`year_spans`) si fa una ricerca
+    per ognuno, passando qui `years`. Senza, vale year_min-year_max.
+    """
     today = today or date.today()
+    year_min, year_max = years if years is not None else (filters.year_min, filters.year_max)
     params: dict[str, Any] = {
         "page": page,
         "include_adult": "false",
@@ -172,9 +183,9 @@ def build_discover_params(
         ]
     if excluded:
         params["without_genres"] = ",".join(map(str, excluded))  # basta un genere per escludere
-    if filters.year_min is not None:
-        params["primary_release_date.gte"] = f"{filters.year_min}-01-01"
-    latest = f"{filters.year_max}-12-31" if filters.year_max is not None else None
+    if year_min is not None:
+        params["primary_release_date.gte"] = f"{year_min}-01-01"
+    latest = f"{year_max}-12-31" if year_max is not None else None
     if filters.kind is StackKind.RECENT:  # niente film annunciati ma non ancora usciti
         latest = min(latest or today.isoformat(), today.isoformat())
     if latest is not None:
@@ -183,6 +194,8 @@ def build_discover_params(
         params["with_runtime.lte"] = filters.max_runtime
     if filters.min_rating is not None:
         params["vote_average.gte"] = max(filters.min_rating, params.get("vote_average.gte", 0))
+    if filters.max_rating is not None:
+        params["vote_average.lte"] = filters.max_rating
     if filters.languages:
         params["with_original_language"] = "|".join(filters.languages)  # "|" = OR
     if filters.themes:
@@ -200,6 +213,7 @@ class TMDBClient:
         self._catalog_cache = TTLCache(CATALOG_TTL)
         self._details_cache = TTLCache(DETAILS_TTL)
         self._match_cache = TTLCache(MATCH_TTL)
+        self._count_cache = TTLCache(COUNT_TTL)
 
     async def aclose(self) -> None:
         await self._http.aclose()
@@ -280,8 +294,62 @@ class TMDBClient:
         movies = [m for d in details if d is not None and (m := self._to_movie(d)) is not None]
         return movies[:limit]
 
+    async def count(self, filters: MovieFilters) -> int:
+        """Quanti film (circa) rispettano i filtri: per il riepilogo dal vivo mentre si sceglie.
+
+        È il totale di TMDB, prima di togliere i già visti e i film senza locandina.
+        """
+        totals = await asyncio.gather(
+            *(self._count_span(filters, span) for span in filters.year_spans())
+        )
+        return sum(totals)
+
+    async def _count_span(self, filters: MovieFilters, span: YearSpan) -> int:
+        params = build_discover_params(filters, page=1, years=span)
+        key = tuple(sorted(params.items()))
+        cached = self._count_cache.get(key)
+        if cached is not None:
+            return cached
+        data = await self._get("/discover/movie", params)
+        total = int(data.get("total_results", 0))
+        if len(self._count_cache) >= COUNT_CACHE_MAX:
+            self._count_cache.clear()
+        self._count_cache.set(key, total)
+        return total
+
     async def _discover_ids(
         self, filters: MovieFilters, limit: int, exclude: set[int]
+    ) -> list[int]:
+        """Gli id candidati, nell'ordine del tipo di pila.
+
+        Con più intervalli di anni (es. anni '90 e anni 2010) si cerca in ognuno e si alternano i
+        risultati, così la pila li mescola invece di riempirsi solo del decennio più popolare.
+        """
+        spans = filters.year_spans()
+        if len(spans) <= 1:
+            if not spans:
+                return []
+            return await self._discover_span(filters, spans[0], limit, exclude, MAX_DISCOVER_PAGES)
+        max_pages = max(3, MAX_DISCOVER_PAGES // len(spans))
+        lists = await asyncio.gather(
+            *(self._discover_span(filters, span, limit, exclude, max_pages) for span in spans)
+        )
+        ids: list[int] = []
+        taken: set[int] = set()
+        for group in itertools.zip_longest(*lists):
+            for movie_id in group:
+                if movie_id is not None and movie_id not in taken:
+                    taken.add(movie_id)
+                    ids.append(movie_id)
+        return ids[:limit]
+
+    async def _discover_span(
+        self,
+        filters: MovieFilters,
+        span: YearSpan,
+        limit: int,
+        exclude: set[int],
+        max_pages: int,
     ) -> list[int]:
         ids: list[int] = []
         taken: set[int] = set()
@@ -293,19 +361,19 @@ class TMDBClient:
                     taken.add(movie_id)
                     ids.append(movie_id)
 
-        first = await self._get("/discover/movie", build_discover_params(filters, page=1))
+        def params(page: int) -> dict[str, Any]:
+            return build_discover_params(filters, page=page, years=span)
+
+        first = await self._get("/discover/movie", params(1))
         collect(first)
-        last_page = min(first.get("total_pages", 1), MAX_DISCOVER_PAGES)
+        last_page = min(first.get("total_pages", 1), max_pages)
         next_page = 2
         while len(ids) < limit and next_page <= last_page:
             # Tante pagine in parallelo quanti sono i film che ancora mancano, a occhio.
             missing_pages = math.ceil((limit - len(ids)) / DISCOVER_PAGE_SIZE)
             batch = range(next_page, min(next_page + missing_pages, last_page + 1))
             for page in await asyncio.gather(
-                *(
-                    self._get("/discover/movie", build_discover_params(filters, page=n))
-                    for n in batch
-                )
+                *(self._get("/discover/movie", params(n)) for n in batch)
             ):
                 collect(page)
             next_page = batch.stop

@@ -68,13 +68,20 @@ class FakeTMDB:
 
         if path == "/discover/movie":
             page = int(params["page"])
+            found = [
+                m
+                for m in self.catalog
+                if m["release_date"] >= params.get("primary_release_date.gte", "")
+                and m["release_date"] <= params.get("primary_release_date.lte", "9999")
+            ]
             start = (page - 1) * DISCOVER_PAGE_SIZE
-            chunk = self.catalog[start : start + DISCOVER_PAGE_SIZE]
+            chunk = found[start : start + DISCOVER_PAGE_SIZE]
             return httpx.Response(
                 200,
                 json={
                     "page": page,
-                    "total_pages": max(1, math.ceil(len(self.catalog) / DISCOVER_PAGE_SIZE)),
+                    "total_results": len(found),
+                    "total_pages": max(1, math.ceil(len(found) / DISCOVER_PAGE_SIZE)),
                     "results": [{"id": m["id"], "title": m["title"]} for m in chunk],
                 },
             )

@@ -1,4 +1,4 @@
-import type { CreatedRoom, DiaryEntry, FilmRef, Genre, Provider, RoomInfo, Theme } from './types'
+import type { CreatedRoom, DiaryEntry, FilmRef, Genre, Provider, RoomInfo, StackSettings, Theme } from './types'
 
 export class ApiError extends Error {
   status: number
@@ -13,7 +13,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
   try {
     response = await fetch(path, init)
-  } catch {
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
     throw new ApiError('Server non raggiungibile, riprova tra poco', 0)
   }
   if (!response.ok) {
@@ -42,6 +43,14 @@ export const api = {
   genres: () => request<Genre[]>('/api/genres'),
   themes: () => request<Theme[]>('/api/themes'),
   providers: () => request<Provider[]>('/api/providers'),
+  /** Quanti film (circa) rispettano i filtri, prima di togliere i già visti. */
+  countMovies: (filters: Omit<StackSettings, 'limit'>, signal?: AbortSignal) =>
+    request<{ total: number }>('/api/movies/count', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(filters),
+      signal,
+    }).then((result) => result.total),
   /** Ultimi ~50 film del diario pubblico di un utente Letterboxd. */
   letterboxdRecent: (username: string) =>
     request<{ username: string; films: DiaryEntry[]; truncated: boolean }>(`/api/letterboxd/${encodeURIComponent(username)}/recent`),

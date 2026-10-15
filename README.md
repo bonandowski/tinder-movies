@@ -181,8 +181,9 @@ Limiti da conoscere:
 | `genres` | `genres=35&genres=53` | ID generi (da `/api/genres`), basta uno qualsiasi |
 | `exclude_genres` | `exclude_genres=27` | ID generi da escludere, basta uno |
 | `year_min` / `year_max` | `year_min=1990&year_max=1999` | Anni di uscita (compresi) |
+| `year_ranges` | `year_ranges=1990-1999&year_ranges=2010-2019` | Più intervalli di anni, basta uno (`-1979` e `2020-` per gli estremi); i film dei vari intervalli si alternano nella pila |
 | `max_runtime` | `max_runtime=120` | Durata massima in minuti |
-| `min_rating` | `min_rating=7` | Voto TMDB minimo |
+| `min_rating` / `max_rating` | `max_rating=5` | Voto TMDB minimo / massimo (per gli amanti dell'orrido) |
 | `kind` | `kind=hidden_gems` | `popular` (default), `top_rated` (≥1000 voti), `recent` (dal più recente, già usciti), `hidden_gems` (voto ≥ 7, 100-1500 voti, senza documentari e concerti se non chiesti) |
 | `languages` | `languages=it&languages=fr` | Lingue originali (ISO 639-1), basta una |
 | `themes` | `themes=207317` | Temi (da `/api/themes`), basta uno |
@@ -204,6 +205,7 @@ o rifiuta la chiave, `422` se un filtro non è valido.
 | Endpoint | Cosa fa |
 |----------|---------|
 | `GET /api/letterboxd/{utente}/recent` | Ultimi ~50 film del diario pubblico (RSS): `{username, films:[{tmdb_id, title, year, rating, watched_date, rewatch}], truncated}`; `truncated` = la RSS è piena e il diario va più indietro; 404 se l'utente non esiste |
+| `POST /api/movies/count` | Quanti film (circa) rispettano i filtri, per il conteggio dal vivo nel wizard: body con gli stessi filtri di `/api/movies` → `{total}` |
 | `POST /api/films/match` | Riconosce film da titolo + anno (max 200): `{films:[{title, year?}]}` → `{ids:[id\|null,…]}` nello stesso ordine |
 | `POST /api/rooms` | Crea una stanza. Body `{"name": "Anna", "solo": false}` → `{code, name, token}`; con `solo: true` nessun altro può entrare |
 | `GET /api/rooms/{code}` | La stanza esiste e ci si può entrare? → `{code, solo, phase, players, joinable}` (404 se no) |

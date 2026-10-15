@@ -162,3 +162,12 @@ def test_movies_accepts_the_new_filters(client, fake_tmdb: FakeTMDB):
 )
 def test_movies_rejects_invalid_new_filters(client, params):
     assert client.get("/api/movies", params=params).status_code == 422
+
+
+def test_count_endpoint_tells_how_many_films_match(client, fake_tmdb: FakeTMDB):
+    fake_tmdb.catalog = [make_details(i, release=f"199{i}-01-01") for i in range(5)]
+    response = client.post("/api/movies/count", json={"year_ranges": ["1990-1992"]})
+    assert response.status_code == 200
+    assert response.json() == {"total": 3}
+    assert client.post("/api/movies/count", json={"max_rating": 4}).json() == {"total": 5}
+    assert client.post("/api/movies/count", json={"year_ranges": ["boh"]}).status_code == 422

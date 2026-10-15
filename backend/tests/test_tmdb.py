@@ -91,6 +91,23 @@ def test_min_rating_never_lowers_the_hidden_gems_threshold():
     assert build_discover_params(gems.model_copy(update={"min_rating": 8}))["vote_average.gte"] == 8
 
 
+def test_max_rating_lets_you_pick_the_bad_ones():
+    params = build_discover_params(MovieFilters(max_rating=5))
+    assert params["vote_average.lte"] == 5
+    assert params["vote_count.gte"] == 100  # brutti sì, ma che qualcuno li abbia visti
+
+
+def test_year_ranges_become_one_span_each_inside_year_min_max():
+    filters = MovieFilters(year_ranges=["1990-1999", "2010-2019", "-1979", "2020-"])
+    assert filters.year_spans() == [(1990, 1999), (2010, 2019), (None, 1979), (2020, None)]
+    bounded = filters.model_copy(update={"year_min": 1995, "year_max": 2015})
+    assert bounded.year_spans() == [(1995, 1999), (2010, 2015)]  # gli altri restano fuori
+    assert MovieFilters(year_min=2000).year_spans() == [(2000, None)]
+    params = build_discover_params(filters, years=(1990, 1999))
+    assert params["primary_release_date.gte"] == "1990-01-01"
+    assert params["primary_release_date.lte"] == "1999-12-31"
+
+
 def test_recent_pile_up_to_an_older_year_keeps_that_year():
     params = build_discover_params(
         MovieFilters(kind=StackKind.RECENT, year_max=1999), today=date(2026, 10, 11)
@@ -105,6 +122,10 @@ def test_recent_pile_up_to_an_older_year_keeps_that_year():
         {"languages": ["ita"]},
         {"languages": ["IT"]},
         {"min_rating": 11},
+        {"min_rating": 7, "max_rating": 5},
+        {"year_ranges": ["1990"]},
+        {"year_ranges": ["-"]},
+        {"year_ranges": ["1999-1990"]},
         {"kind": "random"},
     ],
 )
@@ -210,6 +231,36 @@ async def test_discover_request_carries_filters_and_locale(tmdb: TMDBClient, fak
     assert params["with_genres"] == "35"
     assert params["primary_release_date.gte"] == "2010-01-01"
     assert params["with_runtime.lte"] == "120"
+
+
+def dated_catalog():
+    """10 film degli anni '90 (id 1-10) e 10 degli anni 2010 (id 11-20)."""
+    nineties = [make_details(i, release=f"199{i - 1}-06-01") for i in range(1, 11)]
+    tens = [make_details(i, release=f"201{i - 11}-06-01") for i in range(11, 21)]
+    return nineties + tens
+
+
+async def test_several_year_ranges_mix_their_films(tmdb: TMDBClient, fake_tmdb: FakeTMDB):
+    fake_tmdb.catalog = dated_catalog()
+    movies = await tmdb.movies(MovieFilters(year_ranges=["1990-1999", "2010-2019"]), limit=6)
+    assert [m.id for m in movies] == [1, 11, 2, 12, 3, 13]  # alternati, non solo il primo decennio
+    assert len(fake_tmdb.requests_to("/discover/movie")) == 2
+
+
+async def test_year_ranges_outside_year_min_max_find_nothing(tmdb: TMDBClient, fake_tmdb: FakeTMDB):
+    fake_tmdb.catalog = dated_catalog()
+    filters = MovieFilters(year_ranges=["1990-1999"], year_min=2000)
+    assert await tmdb.movies(filters) == []
+    assert await tmdb.count(filters) == 0
+    assert fake_tmdb.requests_to("/discover/movie") == []
+
+
+async def test_count_sums_the_year_ranges_and_is_cached(tmdb: TMDBClient, fake_tmdb: FakeTMDB):
+    fake_tmdb.catalog = dated_catalog()
+    assert await tmdb.count(MovieFilters()) == 20
+    assert await tmdb.count(MovieFilters(year_ranges=["1990-1994", "2010-"])) == 15
+    assert await tmdb.count(MovieFilters(year_ranges=["1990-1994", "2010-"])) == 15
+    assert len(fake_tmdb.requests_to("/discover/movie")) == 3  # 1 + 2, la terza volta dalla cache
 
 
 # --- generi e piattaforme ---------------------------------------------------------------------

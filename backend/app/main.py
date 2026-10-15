@@ -14,7 +14,16 @@ from pydantic import BaseModel, Field
 
 from app.config import get_letterboxd_base_url, get_tmdb_api_key
 from app.letterboxd import DiaryEntry, LetterboxdClient, LetterboxdError
-from app.models import MAX_MATCH_BATCH, FilmRef, Genre, Movie, Provider, StackSettings, Theme
+from app.models import (
+    MAX_MATCH_BATCH,
+    FilmRef,
+    Genre,
+    Movie,
+    MovieFilters,
+    Provider,
+    StackSettings,
+    Theme,
+)
 from app.protocol import Phase
 from app.realtime import Hub
 from app.rooms import MAX_NAME_LENGTH, MAX_PLAYERS, RoomError, RoomManager, TooManyRooms
@@ -102,6 +111,16 @@ async def movies(tmdb: TMDB, query: Annotated[StackSettings, Query()]):
     Filtri ripetibili: `?platforms=8&platforms=337&genres=35&year_min=2010&max_runtime=120`.
     """
     return await tmdb.movies(query, query.limit)
+
+
+class MovieCount(BaseModel):
+    total: int = Field(description="Film che rispettano i filtri, circa (prima dei già visti)")
+
+
+@app.post("/api/movies/count", response_model=MovieCount)
+async def count_movies(filters: MovieFilters, tmdb: TMDB):
+    """Quanti film ci sono con questi filtri: il riepilogo dal vivo mentre si sceglie."""
+    return MovieCount(total=await tmdb.count(filters))
 
 
 class MatchRequest(BaseModel):

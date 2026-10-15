@@ -9,22 +9,23 @@ export const KINDS: { value: StackKind; label: string; hint: string; emoji: stri
   { value: 'hidden_gems', label: 'Perle nascoste', hint: 'Belli e poco noti', emoji: '💎' },
 ]
 
-export const MIN_RATINGS: { label: string; value: number | null }[] = [
-  { label: 'Qualsiasi', value: null },
-  { label: '6+', value: 6 },
-  { label: '7+', value: 7 },
-  { label: '7,5+', value: 7.5 },
-  { label: '8+', value: 8 },
+export const RATINGS: { label: string; min: number | null; max: number | null }[] = [
+  { label: 'Qualsiasi', min: null, max: null },
+  { label: '💩 Fino a 5', min: null, max: 5 },
+  { label: '★ 6+', min: 6, max: null },
+  { label: '★ 7+', min: 7, max: null },
+  { label: '★ 7,5+', min: 7.5, max: null },
+  { label: '★ 8+', min: 8, max: null },
 ]
 
-export const YEAR_RANGES: { label: string; min: number | null; max: number | null }[] = [
-  { label: 'Qualsiasi', min: null, max: null },
-  { label: 'Fino al 1979', min: null, max: 1979 },
-  { label: 'Anni ’80', min: 1980, max: 1989 },
-  { label: 'Anni ’90', min: 1990, max: 1999 },
-  { label: 'Anni 2000', min: 2000, max: 2009 },
-  { label: 'Anni 2010', min: 2010, max: 2019 },
-  { label: 'Dal 2020', min: 2020, max: null },
+/** Decenni e simili, scelti anche più d'uno: `value` è l'intervallo come lo vuole il server. */
+export const YEAR_RANGES: { label: string; value: string }[] = [
+  { label: 'Fino al 1979', value: '-1979' },
+  { label: 'Anni ’80', value: '1980-1989' },
+  { label: 'Anni ’90', value: '1990-1999' },
+  { label: 'Anni 2000', value: '2000-2009' },
+  { label: 'Anni 2010', value: '2010-2019' },
+  { label: 'Dal 2020', value: '2020-' },
 ]
 
 export const LANGUAGES: { code: string; label: string; flag: string }[] = [
@@ -51,11 +52,37 @@ export const LIMITS = [10, 20, 30, 50]
 export const toggle = <T,>(list: T[], item: T) =>
   list.includes(item) ? list.filter((x) => x !== item) : [...list, item]
 
-/** Il preset di anni corrispondente ai filtri, o null se è un intervallo fuori dai preset. */
-export function yearRangeLabel(settings: Pick<RoomSettings, 'year_min' | 'year_max'>): string | null {
-  const preset = YEAR_RANGES.find((r) => r.min === settings.year_min && r.max === settings.year_max)
-  if (preset) return preset.label
+/** Gli anni scelti in breve: "Anni ’90, Anni 2010", oppure "Qualsiasi". */
+export function yearRangeLabel(settings: Pick<RoomSettings, 'year_min' | 'year_max' | 'year_ranges'>): string {
+  if (settings.year_ranges.length) {
+    const order = YEAR_RANGES.map((r) => r.value)
+    return [...settings.year_ranges]
+      .sort((a, b) => order.indexOf(a) - order.indexOf(b))
+      .map((value) => YEAR_RANGES.find((r) => r.value === value)?.label ?? value.replace('-', '–'))
+      .join(', ')
+  }
+  if (settings.year_min === null && settings.year_max === null) return 'Qualsiasi'
   return `${settings.year_min ?? '…'}–${settings.year_max ?? 'oggi'}`
+}
+
+/** Il voto scelto in breve, per il riepilogo: "" se qualsiasi. */
+export function ratingLabel(settings: Pick<RoomSettings, 'min_rating' | 'max_rating'>): string {
+  const fmt = (n: number) => String(n).replace('.', ',')
+  if (settings.min_rating !== null && settings.max_rating !== null) return `voto ${fmt(settings.min_rating)}–${fmt(settings.max_rating)}`
+  if (settings.max_rating !== null) return `💩 voto fino a ${fmt(settings.max_rating)}`
+  if (settings.min_rating !== null) return `voto ${fmt(settings.min_rating)}+`
+  return ''
+}
+
+/**
+ * I filtri che userà davvero la partita: i veti di chiunque tolgono quei generi (come fa il server
+ * in begin_loading). null se tutti i generi scelti sono stati vietati: nessun film possibile.
+ */
+export function effectiveFilters(settings: RoomSettings, vetoed: number[]): Omit<RoomSettings, 'limit' | 'exclude_seen'> | null {
+  const genres = settings.genres.filter((g) => !vetoed.includes(g))
+  if (settings.genres.length && !genres.length) return null
+  const { limit, exclude_seen, ...filters } = settings
+  return { ...filters, genres, exclude_genres: [...new Set([...settings.exclude_genres, ...vetoed])].sort((a, b) => a - b) }
 }
 
 /** Chi ha vietato cosa: [{genere, nomi}] nell'ordine dei generi. */
@@ -88,7 +115,7 @@ export function describeSettings(
   const pick = (ids: number[], source: { id: number; name: string }[] = [], all: string) =>
     ids.length ? ids.map((id) => source.find((s) => s.id === id)?.name ?? '…').join(', ') : all
   const kind = KINDS.find((k) => k.value === settings.kind)!
-  const rating = settings.min_rating === null ? '' : ` · voto ${String(settings.min_rating).replace('.', ',')}+`
+  const rating = ratingLabel(settings) && ` · ${ratingLabel(settings)}`
   const runtime = RUNTIMES.find((r) => r.value === settings.max_runtime)?.label ?? `max ${settings.max_runtime} min`
   return [
     { step: 'platforms', label: 'Piattaforme', value: pick(settings.platforms, catalog?.providers, 'tutte') },

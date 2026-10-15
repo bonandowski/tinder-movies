@@ -43,6 +43,14 @@ class StackKind(StrEnum):
 
 
 LanguageCode = Annotated[str, Field(pattern=r"^[a-z]{2}$")]
+# Intervallo di anni come testo, comodo anche in query string: "1990-1999", "-1979", "2020-".
+YearRange = Annotated[str, Field(pattern=r"^(\d{4})?-(\d{4})?$")]
+YearSpan = tuple[int | None, int | None]
+
+
+def parse_year_range(text: str) -> YearSpan:
+    start, _, end = text.partition("-")
+    return (int(start) if start else None, int(end) if end else None)
 
 
 class MovieFilters(BaseModel):
@@ -62,7 +70,13 @@ class MovieFilters(BaseModel):
     year_min: int | None = Field(None, ge=1900, le=2100, description="Anno di uscita minimo")
     year_max: int | None = Field(None, ge=1900, le=2100, description="Anno di uscita massimo")
     max_runtime: int | None = Field(None, ge=30, le=600, description="Durata massima in minuti")
+    year_ranges: list[YearRange] = Field(
+        default_factory=list,
+        max_length=10,
+        description="Intervalli di anni (OR), es. 1990-1999, -1979, 2020-; dentro year_min/max",
+    )
     min_rating: float | None = Field(None, ge=0, le=10, description="Voto TMDB minimo (0-10)")
+    max_rating: float | None = Field(None, ge=0, le=10, description="Voto TMDB massimo (0-10)")
     languages: list[LanguageCode] = Field(
         default_factory=list, max_length=20, description="Lingue originali, codici ISO 639-1 (OR)"
     )
@@ -74,7 +88,37 @@ class MovieFilters(BaseModel):
     def _years_in_order(self) -> "MovieFilters":
         if self.year_min and self.year_max and self.year_min > self.year_max:
             raise ValueError("L'anno iniziale viene dopo quello finale")
+        for text in self.year_ranges:
+            start, end = parse_year_range(text)
+            if start is None and end is None:
+                raise ValueError("Intervallo di anni vuoto")
+            if start is not None and end is not None and start > end:
+                raise ValueError("L'anno iniziale viene dopo quello finale")
+        if (
+            self.min_rating is not None
+            and self.max_rating is not None
+            and self.min_rating > self.max_rating
+        ):
+            raise ValueError("Il voto minimo è più alto di quello massimo")
         return self
+
+    def year_spans(self) -> list[YearSpan]:
+        """Gli intervalli di anni da cercare (ognuno è una ricerca TMDB), già dentro year_min/max.
+
+        Senza `year_ranges` è uno solo: year_min-year_max. Lista vuota = nessun anno possibile.
+        """
+        if not self.year_ranges:
+            return [(self.year_min, self.year_max)]
+        spans: list[YearSpan] = []
+        for text in dict.fromkeys(self.year_ranges):
+            start, end = parse_year_range(text)
+            if self.year_min is not None:
+                start = self.year_min if start is None else max(start, self.year_min)
+            if self.year_max is not None:
+                end = self.year_max if end is None else min(end, self.year_max)
+            if start is None or end is None or start <= end:
+                spans.append((start, end))
+        return spans
 
 
 class StackSettings(MovieFilters):

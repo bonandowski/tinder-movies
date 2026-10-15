@@ -1,12 +1,13 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import {
   describeSettings,
+  effectiveFilters,
   groupVetoes,
   KINDS,
   LANGUAGES,
   LIMITS,
-  MIN_RATINGS,
   nextGenreState,
+  RATINGS,
   RUNTIMES,
   setupSteps,
   toggle,
@@ -17,6 +18,7 @@ import { loadVetoes, saveVetoes } from '../session'
 import { buzz, share } from '../share'
 import type { RoomSettings } from '../types'
 import { useCatalog } from '../useCatalog'
+import { useMovieCount, type MovieCount } from '../useMovieCount'
 import type { RoomApi } from '../useRoom'
 import SeenCard from './SeenCard'
 
@@ -73,6 +75,11 @@ export default function Setup({ room, onLeave }: Props) {
   const online = state.players.filter((p) => p.connected).length
   const needed = state.solo ? 1 : MIN_PLAYERS
   const vetoedBy = new Map(groupVetoes(state.players, catalog?.genres ?? []).map(({ genre, by }) => [genre.id, by]))
+  // Il conteggio dal vivo usa i filtri come li userà la partita: con i veti di tutti (anche i miei
+  // appena toccati, prima che il server li rimandi).
+  const vetoedAll = [...new Set([...state.players.filter((p) => p.name !== state.you).flatMap((p) => p.vetoes), ...vetoes])]
+  const count = useMovieCount(effectiveFilters(isHost ? settings : state.settings, vetoedAll))
+  const noFilms = count.status === 'ready' && count.total === 0
   const text = STEP_TEXT[step]
   const vetoRow = vetoedBy.size
     ? { label: 'No grazie', value: [...vetoedBy].map(([id]) => catalog?.genres.find((g) => g.id === id)?.name ?? '…').join(', ') }
@@ -147,10 +154,14 @@ export default function Setup({ room, onLeave }: Props) {
             </button>
           ))}
         </div>
-        <Group label="Voto minimo">
-          {MIN_RATINGS.map((r) => (
-            <Chip key={r.label} pressed={settings.min_rating === r.value} onClick={() => set({ min_rating: r.value })}>
-              {r.value === null ? r.label : `★ ${r.label}`}
+        <Group label="Voto">
+          {RATINGS.map((r) => (
+            <Chip
+              key={r.label}
+              pressed={settings.min_rating === r.min && settings.max_rating === r.max}
+              onClick={() => set({ min_rating: r.min, max_rating: r.max })}
+            >
+              {r.label}
             </Chip>
           ))}
         </Group>
@@ -158,9 +169,19 @@ export default function Setup({ room, onLeave }: Props) {
     ),
     era: () => (
       <>
-        <Group label="Anni">
+        <Group label="Anni (anche più d'uno)">
+          <Chip
+            pressed={!settings.year_ranges.length && settings.year_min === null && settings.year_max === null}
+            onClick={() => set({ year_ranges: [], year_min: null, year_max: null })}
+          >
+            Qualsiasi
+          </Chip>
           {YEAR_RANGES.map((r) => (
-            <Chip key={r.label} pressed={settings.year_min === r.min && settings.year_max === r.max} onClick={() => set({ year_min: r.min, year_max: r.max })}>
+            <Chip
+              key={r.value}
+              pressed={settings.year_ranges.includes(r.value)}
+              onClick={() => set({ year_ranges: toggle(settings.year_ranges, r.value), year_min: null, year_max: null })}
+            >
               {r.label}
             </Chip>
           ))}
@@ -293,9 +314,10 @@ export default function Setup({ room, onLeave }: Props) {
       </section>
 
       <footer className="setup-foot">
+        {step !== 'invite' && <LiveCount count={count} limit={(isHost ? settings : state.settings).limit} />}
         {step === 'summary' ? (
           <>
-            <button className="btn primary big" disabled={!canStart} onClick={() => (buzz(20), room.start())}>
+            <button className="btn primary big" disabled={!canStart || noFilms} onClick={() => (buzz(20), room.start())}>
               🎬 Inizia a swipare
             </button>
             {!canStart && <p className="muted small center-text">Serve almeno un altro giocatore: torna a "Chiama gli amici".</p>}
@@ -318,6 +340,20 @@ export default function Setup({ room, onLeave }: Props) {
         )}
       </footer>
     </main>
+  )
+}
+
+/** "circa 3.120 film tra cui pescare": per accorgersi subito se i filtri sono troppo stretti. */
+function LiveCount({ count, limit }: { count: MovieCount; limit: number }) {
+  if (count.status === 'error') return null
+  if (count.status === 'loading') return <p className="live-count muted small">🎞️ Conto i film…</p>
+  const total = count.total.toLocaleString('it-IT')
+  if (count.total === 0) return <p className="live-count warn small">😶 Nessun film con questi filtri: allargali un po'</p>
+  if (count.total < limit) return <p className="live-count warn small">⚠️ Solo {total} film: la pila sarà corta</p>
+  return (
+    <p className="live-count muted small">
+      🎞️ Circa <strong>{total}</strong> film tra cui pescare
+    </p>
   )
 }
 

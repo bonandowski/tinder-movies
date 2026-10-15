@@ -33,8 +33,11 @@ export interface StackSettings {
   exclude_genres: number[]
   year_min: number | null
   year_max: number | null
+  /** Intervalli di anni (basta uno): "1990-1999", "-1979", "2020-". */
+  year_ranges: string[]
   max_runtime: number | null
   min_rating: number | null
+  max_rating: number | null
   /** Lingue originali, codici ISO 639-1 (basta una). */
   languages: string[]
   /** Temi: id di parole chiave TMDB (basta uno). */

@@ -921,6 +921,20 @@ details > summary {
   gap: 8px;
 }
 
+.live-count {
+  margin: 0;
+  text-align: center;
+  min-height: 1.3em;
+}
+
+.live-count strong {
+  color: var(--text);
+}
+
+.live-count.warn {
+  color: #ffb4c1;
+}
+
 .chips.compact {
   gap: 6px;
 }

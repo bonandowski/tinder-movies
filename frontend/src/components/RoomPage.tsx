@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import type { Navigate } from '../App'
+import { track } from '../analytics'
 import { api } from '../api'
 import { funnyName } from '../names'
 import { loadName, loadToken, saveName, takeAutojoin } from '../session'
@@ -41,6 +42,7 @@ function JoinGate({
     const clean = name.trim()
     if (!clean) return
     saveName(clean)
+    track('entra-da-link')
     onJoin(clean)
   }
 

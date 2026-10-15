@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { track } from '../analytics'
 import { challenger, choose, decideAtRandom, isDecided, progress, shuffled, startDuel, type Duel } from '../duel'
 import { movieFacts } from '../format'
 import { movieById } from '../roomReducer'
@@ -18,6 +19,10 @@ export default function SoloDecision({ room, onLeave }: Props) {
   const liked = (data.state?.results ?? []).map((r) => r.movie_id).filter((id) => movieById(data, id))
   const [duel, setDuel] = useState<Duel | null>(() => startDuel(shuffled(liked)))
   const [info, setInfo] = useState<Movie | null>(null)
+  const champion = duel && isDecided(duel) ? duel.champion : null
+  useEffect(() => {
+    if (champion !== null) track('scelta-da-solo')
+  }, [champion])
   const movie = (id: number | null) => (id === null ? undefined : movieById(data, id))
 
   const footer = (

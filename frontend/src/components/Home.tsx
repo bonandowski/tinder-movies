@@ -15,6 +15,9 @@ interface Props {
 export default function Home({ flash, navigate }: Props) {
   const [name, setName] = useState(loadName)
   const [joining, setJoining] = useState(false)
+  const [mode, setMode] = useState<'group' | 'solo'>('group')
+  // PROVVISORIO: ?v=c per confrontare le due versioni della home.
+  const variant = new URLSearchParams(location.search).get('v') === 'c' ? 'c' : 'a'
   const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -82,8 +85,25 @@ export default function Home({ flash, navigate }: Props) {
       {(flash || error) && <p className="error">{error ?? flash}</p>}
 
       <section className="card">
+        {variant === 'a' && (
+          <div className="mode-switch" role="radiogroup" aria-label="Come giochi?">
+            <button type="button" role="radio" aria-checked={mode === 'group'} onClick={() => setMode('group')}>
+              👥 In compagnia
+            </button>
+            <button type="button" role="radio" aria-checked={mode === 'solo'} onClick={() => (setMode('solo'), setJoining(false))}>
+              🙋 Da solo
+            </button>
+          </div>
+        )}
         <NameField name={name} onChange={setName} />
-        {joining ? (
+        {variant === 'a' && mode === 'solo' ? (
+          <>
+            <button className="btn primary" disabled={busy} onClick={() => create(true)}>
+              🍿 Inizia da solo
+            </button>
+            <p className="muted small mode-hint">Swipa da solo, poi i film che ti piacciono si sfidano a coppie fino al vincitore.</p>
+          </>
+        ) : joining ? (
           <form className="field" style={{ gap: 8 }} onSubmit={join}>
             <div className="row">
               <input
@@ -116,15 +136,15 @@ export default function Home({ flash, navigate }: Props) {
         )}
       </section>
 
-      <div className="divider">da solo</div>
-
-      <button className="card solo-card" disabled={busy} onClick={() => create(true)}>
-        <span className="solo-text">
-          <strong>🎲 Non sai cosa guardare?</strong>
-          <span className="muted small">Swipe da solo, poi i film che ti piacciono si sfidano.</span>
-        </span>
-        <span className="muted">›</span>
-      </button>
+      {variant === 'c' && (
+        <button className="card solo-card" disabled={busy} onClick={() => create(true)}>
+          <span className="solo-text">
+            <strong>🙋 Gioca da solo</strong>
+            <span className="muted small">Swipa per conto tuo: alla fine i film che ti piacciono si sfidano a coppie fino al vincitore.</span>
+          </span>
+          <span className="solo-go">Inizia ›</span>
+        </button>
+      )}
 
       <p className="muted small center-text">Solo film in streaming in Italia · niente registrazione</p>
     </main>

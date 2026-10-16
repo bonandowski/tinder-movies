@@ -1740,3 +1740,70 @@ details > summary {
 .demo-match {
   font-size: clamp(0.85rem, 1.8dvh, 1.15rem);
 }
+
+/* --- modalità da solo ----------------------------------------------------------------------- */
+
+.mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.mode-switch button {
+  border: 0;
+  border-radius: 10px;
+  padding: 9px 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+
+.mode-switch button[aria-checked='true'] {
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+
+.mode-hint {
+  margin: 0;
+  text-align: center;
+}
+
+.solo-card {
+  border-color: rgba(255, 138, 92, 0.55);
+  background: linear-gradient(135deg, rgba(255, 77, 109, 0.12), rgba(255, 138, 92, 0.08)), var(--surface);
+}
+
+.solo-go {
+  flex: none;
+  font-weight: 700;
+  color: var(--like-2);
+}
+
+.solo-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(255, 138, 92, 0.16);
+  color: var(--like-2);
+  font-weight: 700;
+}
+
+.solo-tip {
+  text-align: center;
+  align-items: center;
+  border-radius: 24px;
+  margin: 0 16px;
+  width: calc(100% - 32px);
+}
+
+.solo-tip p {
+  margin: 0;
+}

@@ -291,7 +291,7 @@ export default function Setup({ room, onLeave }: Props) {
             <span>
               Passo {index + 1} di {steps.length}
             </span>
-            {!state.solo && <span>Stanza {state.code}</span>}
+            {state.solo ? <span className="solo-badge">🙋 Da solo</span> : <span>Stanza {state.code}</span>}
           </div>
           <div className="steps-bar" aria-hidden>
             {steps.map((s, i) => (

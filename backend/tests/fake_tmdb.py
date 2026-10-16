@@ -122,7 +122,13 @@ class FakeTMDB:
         if path == "/genre/movie/list":
             return httpx.Response(
                 200,
-                json={"genres": [{"id": 35, "name": "Commedia"}, {"id": 53, "name": "Thriller"}]},
+                json={
+                    "genres": [
+                        {"id": 35, "name": "Commedia"},
+                        {"id": 53, "name": "Thriller"},
+                        {"id": 16, "name": "Animazione"},
+                    ]
+                },
             )
         if path == "/watch/providers/movie":
             return httpx.Response(

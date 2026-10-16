@@ -89,6 +89,7 @@ def test_genres_and_providers(client):
     assert client.get("/api/genres").json() == [
         {"id": 35, "name": "Commedia"},
         {"id": 53, "name": "Thriller"},
+        {"id": 16, "name": "Animazione / cartoni"},
     ]
     names = [p["name"] for p in client.get("/api/providers").json()]
     assert names == ["Netflix", "Prime Video", "Disney Plus"]

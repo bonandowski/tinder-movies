@@ -242,22 +242,6 @@ p {
   color: transparent;
 }
 
-.divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.divider::before,
-.divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
-
 /* --- lobby ---------------------------------------------------------------------------------- */
 
 .room-code {
@@ -790,19 +774,6 @@ details > summary {
   gap: 10px;
 }
 
-.solo-card {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  text-align: left;
-  color: inherit;
-  width: 100%;
-}
-
-.solo-card:active {
-  transform: scale(0.98);
-}
-
 .btn.big {
   padding: 16px 18px;
   font-size: 1.05rem;
@@ -1227,16 +1198,6 @@ details > summary {
   white-space: nowrap;
 }
 
-.solo-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.solo-text .small {
-  text-wrap: pretty;
-}
-
 @media (max-height: 700px) {
   .home-hero .brand {
     margin-bottom: 8px;
@@ -1564,10 +1525,6 @@ details > summary {
   .demo-avatar {
     font-size: 1.6rem;
   }
-
-  .home .divider {
-    font-size: 0.78rem;
-  }
 }
 
 .demo {
@@ -1739,4 +1696,60 @@ details > summary {
 
 .demo-match {
   font-size: clamp(0.85rem, 1.8dvh, 1.15rem);
+}
+
+/* --- modalità da solo ----------------------------------------------------------------------- */
+
+.mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.mode-switch button {
+  border: 0;
+  border-radius: 10px;
+  padding: 9px 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+
+.mode-switch button[aria-checked='true'] {
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+
+.mode-hint {
+  margin: 0;
+  text-align: center;
+}
+
+.solo-badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(255, 138, 92, 0.16);
+  color: var(--like-2);
+  font-weight: 700;
+}
+
+.solo-tip {
+  text-align: center;
+  align-items: center;
+  border-radius: 24px;
+  margin: 0 16px;
+  width: calc(100% - 32px);
+}
+
+.solo-tip p {
+  margin: 0;
 }

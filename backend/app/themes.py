@@ -8,6 +8,7 @@ from app.models import Theme
 
 THEMES: list[Theme] = [
     Theme(id=207317, name="Natale"),
+    Theme(id=210024, name="Anime 🇯🇵"),
     Theme(id=9672, name="Storia vera"),
     Theme(id=5565, name="Biografie"),
     Theme(id=818, name="Tratto da un libro"),

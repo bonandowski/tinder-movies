@@ -268,7 +268,11 @@ async def test_count_sums_the_year_ranges_and_is_cached(tmdb: TMDBClient, fake_t
 
 async def test_genres(tmdb: TMDBClient):
     genres = await tmdb.genres()
-    assert [(g.id, g.name) for g in genres] == [(35, "Commedia"), (53, "Thriller")]
+    assert [(g.id, g.name) for g in genres] == [
+        (35, "Commedia"),
+        (53, "Thriller"),
+        (16, "Animazione / cartoni"),  # nome ritoccato
+    ]
 
 
 async def test_providers_are_sorted_by_italian_priority(tmdb: TMDBClient, fake_tmdb: FakeTMDB):

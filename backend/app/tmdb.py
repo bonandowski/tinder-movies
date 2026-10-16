@@ -57,6 +57,8 @@ MATCH_TTL = 30 * 24 * 3600  # "questo titolo + anno è quel film" non cambia
 MATCH_CACHE_MAX = 50_000
 MATCH_LANGUAGE = "en-US"  # Letterboxd scrive i titoli in inglese o nella lingua originale
 MIN_TITLE_SIMILARITY = 0.85  # sotto questa somiglianza un risultato non è "lo stesso titolo"
+# Nomi TMDB da ritoccare: "Animazione" passa inosservato, "televisione film" è scritto male.
+GENRE_NAMES = {16: "Animazione / cartoni", 10770: "Film TV"}
 RATE_LIMIT_ATTEMPTS = 3
 RATE_LIMIT_DELAY = 1.0  # secondi, moltiplicati per il numero del tentativo
 
@@ -245,7 +247,9 @@ class TMDBClient:
         if cached is not None:
             return cached
         data = await self._get("/genre/movie/list")
-        result = [Genre(id=g["id"], name=g["name"]) for g in data["genres"]]
+        result = [
+            Genre(id=g["id"], name=GENRE_NAMES.get(g["id"], g["name"])) for g in data["genres"]
+        ]
         self._catalog_cache.set("genres", result)
         return result
 

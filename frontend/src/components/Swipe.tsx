@@ -20,12 +20,14 @@ export default function Swipe({ room, onLeave }: Props) {
   const cardRef = useRef<CardHandle>(null)
   const [info, setInfo] = useState<Movie | null>(null)
   const [showMatches, setShowMatches] = useState(false)
+  const [soloTip, setSoloTip] = useState(state.solo)
 
   const total = data.movies.length
   const index = nextIndex(data)
   const movie = data.movies[index]
   const matchMovie = movieById(data, data.matchQueue[0])
-  const blocked = Boolean(info || matchMovie || showMatches)
+  const tipOpen = soloTip && nextIndex(data) === 0
+  const blocked = Boolean(info || matchMovie || showMatches || tipOpen)
   const isHost = state.you === state.host
   const matches = state.matches.flatMap((id) => movieById(data, id) ?? [])
   // Da solo non ci sono match: il cuore conta i film a cui hai detto sì.
@@ -74,6 +76,21 @@ export default function Swipe({ room, onLeave }: Props) {
   const overlays = (
     <>
       {matchMovie && <MatchOverlay movie={matchMovie} more={data.matchQueue.length - 1} onContinue={room.dismissMatch} />}
+      {tipOpen && (
+        <div className="overlay middle" role="dialog" aria-label="Come funziona da solo">
+          <div className="sheet solo-tip">
+            <span className="solo-badge">🙋 Da solo</span>
+            <h2>Come funziona</h2>
+            <p>
+              <strong>♥ Destra</strong> ai film che ti ispirano, <strong>✕ sinistra</strong> agli altri.
+            </p>
+            <p className="muted">Alla fine i film che ti piacciono si sfidano a coppie fino al vincitore. Puoi fermarti quando vuoi dal ❤ in alto.</p>
+            <button className="btn primary" onClick={() => setSoloTip(false)}>
+              Ho capito, via!
+            </button>
+          </div>
+        </div>
+      )}
       {info && <MovieSheet movie={info} onClose={() => setInfo(null)} />}
       {showMatches && (
         <div className="overlay" onClick={() => setShowMatches(false)}>

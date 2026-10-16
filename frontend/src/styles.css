@@ -242,22 +242,6 @@ p {
   color: transparent;
 }
 
-.divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.divider::before,
-.divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
-
 /* --- lobby ---------------------------------------------------------------------------------- */
 
 .room-code {
@@ -790,19 +774,6 @@ details > summary {
   gap: 10px;
 }
 
-.solo-card {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-  text-align: left;
-  color: inherit;
-  width: 100%;
-}
-
-.solo-card:active {
-  transform: scale(0.98);
-}
-
 .btn.big {
   padding: 16px 18px;
   font-size: 1.05rem;
@@ -1227,16 +1198,6 @@ details > summary {
   white-space: nowrap;
 }
 
-.solo-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.solo-text .small {
-  text-wrap: pretty;
-}
-
 @media (max-height: 700px) {
   .home-hero .brand {
     margin-bottom: 8px;
@@ -1564,10 +1525,6 @@ details > summary {
   .demo-avatar {
     font-size: 1.6rem;
   }
-
-  .home .divider {
-    font-size: 0.78rem;
-  }
 }
 
 .demo {
@@ -1774,17 +1731,6 @@ details > summary {
 .mode-hint {
   margin: 0;
   text-align: center;
-}
-
-.solo-card {
-  border-color: rgba(255, 138, 92, 0.55);
-  background: linear-gradient(135deg, rgba(255, 77, 109, 0.12), rgba(255, 138, 92, 0.08)), var(--surface);
-}
-
-.solo-go {
-  flex: none;
-  font-weight: 700;
-  color: var(--like-2);
 }
 
 .solo-badge {
